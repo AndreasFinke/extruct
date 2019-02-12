@@ -47,14 +47,16 @@ void print_contents(const C<T, A>& v, const char * const separator = ", ")
 int main() {
 
     START_NAMED_TIMER("Big Bang")
-    Universe universe(0);
+    Universe universe(0, 10);
     STOP_TIMER
 
     START_NAMED_TIMER("density")
     //universe.draw();
     //universe.draw();
     //universe.draw();
-    for (int k = 0; k < 20000; ++k) {
+    int k = 0;
+    for (; universe.latestTime < 400000; ++k) {
+    //for (; k<200000; ++k) {
         double * den = universe.density();
         //std::cout << std::endl << std::endl;
         //for (int i = 0; i < universe.nParticles; ++i) {
@@ -70,7 +72,9 @@ int main() {
     }
     universe.synchronize();
     for (int i = 0; i < universe.nParticles; ++i) 
-        std::cout << i << ": " << universe.get_particle_pos(i) << " ";
+        std::cout << i << ": " << universe.get_particle_pos(i) << " (t=" << universe.get_particle_time(i) << ") ";
+
+    std::cout << "integrated " << k << " collisions. " << std::endl;
 
     STOP_TIMER
 

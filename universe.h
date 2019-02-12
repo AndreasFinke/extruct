@@ -13,7 +13,7 @@
 class Universe { 
 public:
 
-    Universe(Long seed) : pcg(seed), initDisplacement(512), nParticles(30) {
+    Universe(Long seed, Long nParticles) : pcg(seed), initDisplacement(512), nParticles(nParticles) {
         draw();
     }
 
@@ -59,6 +59,8 @@ public:
             update_particle(i, latestTime);
     }
 
+    Float latestTime = 0;
+
 private:
     //
     Float collision_time(Long idLeft);
@@ -68,7 +70,6 @@ private:
 
     pcg32 pcg;
 
-    Float latestTime = 0;
 
     struct RightCollision {
         RightCollision(Long particleId, Float collisionTime) : id(particleId), collTime(collisionTime) {} 

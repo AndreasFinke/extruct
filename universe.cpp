@@ -64,7 +64,7 @@ void Universe::sampleParticles() {
 }
 
 Float force(Long id, Long n) { 
-    return Float(0.01)*(n*Float(0.5)-id);
+    return Float(0.01)*((n-1)*Float(0.5)-id);
 }
 
 /* compute right-collision times of particle at idLeft with particle at idLeft+1
