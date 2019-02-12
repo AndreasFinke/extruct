@@ -4,9 +4,7 @@
 //#include <Eigen/Geometry>
 #include <iostream>
 
-#include "boost/sort/sort.hpp"
-#include "plf_timsort/plf_timsort.h"
-#include <tbb/parallel_sort.h>
+
 
 //#include <pybind11/numpy.h>
 
@@ -53,21 +51,27 @@ int main() {
     STOP_TIMER
 
     START_NAMED_TIMER("density")
-    universe.draw();
-    for (int k = 0; k < 10; ++k) {
+    //universe.draw();
+    //universe.draw();
+    //universe.draw();
+    for (int k = 0; k < 20000; ++k) {
         double * den = universe.density();
-        //for (int i = 0; i < 512; ++i) 
-            //std::cout << den[i] << " ";
-        std::cout << std::endl << std::endl;
-        for (int i = 0; i < universe.nParticles; ++i) 
-            std::cout << i << ": " << universe.get_particle_pos(i) << " ";
-        std::cout << std::endl;
+        //std::cout << std::endl << std::endl;
+        //for (int i = 0; i < universe.nParticles; ++i) {
+            //std::cout << i << ": " << universe.get_particle_pos(i) << " (t=" << universe.get_particle_time(i) << ") ";
+        //}
+
+        //std::cout << std::endl;
         delete[] den; 
         universe.update_collision();
-        universe.synchronize();
+        //universe.synchronize();
         //universe.draw();
-        std::cout << std::endl << std::endl;
+        //std::cout << std::endl << std::endl;
     }
+    universe.synchronize();
+    for (int i = 0; i < universe.nParticles; ++i) 
+        std::cout << i << ": " << universe.get_particle_pos(i) << " ";
+
     STOP_TIMER
 
     //Float a = pcg.nextFloat();

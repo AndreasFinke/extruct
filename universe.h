@@ -13,7 +13,7 @@
 class Universe { 
 public:
 
-    Universe(Long seed) : pcg(seed), initDisplacement(512), nParticles(10) {
+    Universe(Long seed) : pcg(seed), initDisplacement(512), nParticles(30) {
         draw();
     }
 
@@ -27,11 +27,12 @@ public:
     }
 
     Float get_particle_pos(Long i) { return particles[i].x; }
+    Float get_particle_time(Long i) { return particles[i].t; }
 
     void integrateBackground();
     void integrate(Float z);
 
-    const Long nParticles = 16; 
+    const Long nParticles; 
 
     auto density() {
         int res = 512; 

@@ -10,6 +10,7 @@ void Universe::sampleParticles() {
     particles.reserve(nParticles);
 
     // fill particles according to displacement field 
+    Float totalVel = 0;
     for (Long i = 0; i < nParticles; ++i) {
         Float x = (Float(i)+Float(0.5)) / nParticles;
         //std::cout << x << std::endl;
@@ -18,10 +19,21 @@ void Universe::sampleParticles() {
         Float dh = 1;
         Float vel  = disp*dh;
         particles.push_back(Particle(x+disp, vel));
-
+        //
+        totalVel += vel;
         //initial time
         particles[i].t = 0;
     }
+
+    //set total momentum to zero
+    totalVel /= nParticles;
+    std::cout << "totalVel = " << totalVel << std::endl;
+    for (Long i = 0; i < nParticles; ++i) 
+        particles[i].v -= totalVel;
+    totalVel = 0;
+    for (Long i = 0; i < nParticles; ++i) 
+        totalVel += particles[i].v;
+    std::cout << "totalVel = " << totalVel << std::endl;
 
     // confirm order 
     bool flag = false;
@@ -38,9 +50,13 @@ void Universe::sampleParticles() {
     collisions.clear();
     for (Long i = 0; i < nParticles-1; ++i) {
         Float collTime = particles[i].t + collision_time(i); 
-
+        //
+        std::cout << "Adding collision at " << i << " of " << nParticles << " particles" <<  std::endl;
+    
         // create new collision task for this particle and store pointer to the task in the particle 
         particles[i].task = collisions.insert(RightCollision(i, collTime));
+
+        if (particles[i].task == collisions.end() ) std::cout << "BUT IS END" << std::endl;
     }
     particles[nParticles-1].task = collisions.end();
 
@@ -81,18 +97,28 @@ void Universe::update_particle(Long id, Float t) {
 }
 
 void Universe::update_collision() {
-   
+
+    //std::cout << "before: " << std::endl;
+    //for (auto c : collisions) {
+        //std::cout << c.id << ": " << c.collTime << " ";
+    //}
+    //std::cout << std::endl;
     // pick next collision
 
     auto coll = collisions.begin();
     assert(coll == particles[coll->id].task);
     
-    std::cout << "coll part is " << coll->id << std::endl;
+    //std::cout << "coll part is " << coll->id << std::endl;
     // update two colliding particles
    
     Float t = coll->collTime;
     latestTime = t;
     Long id = coll->id;
+
+    // this collision is not needed anymore. 
+    // the tasks of particle at id (still pointing to coll)
+    // (and potentially id+1) will be updated below 
+    collisions.erase(coll);
 
     update_particle(id, t);
     update_particle(id+1, t);
@@ -100,36 +126,53 @@ void Universe::update_collision() {
     //positions should now agree - check 
 
     assert(std::fabs(particles[id].x - particles[id+1].x) < 0.00000001);
-    std::cout << std::fabs(particles[coll->id].x - particles[coll->id+1].x) << std::endl;
+    //std::cout << std::fabs(particles[coll->id].x - particles[coll->id+1].x) << std::endl;
 
     // swap their positions in sorted particle list since that's their future 
    
     std::swap(particles[id], particles[id+1]);
 
-    // update the (up to) two surrounding particles. We know they cannot have collided by time t!
-    if (id + 1 < nParticles-1) {
-        update_particle(id + 2, t);
-    }
-
-    // all up to 3 particles 
-    //    (id) <- collided -> (id+1)   (id+2)
-    // involved are now at the same time t, 
-    // so we can use collision_time without problem 
-    // note also that all other collision times further out 
-    // (e.g. (id+2) (id+3) ) are unaffected by what happened here (i.e. id+2 moving to time t)   
-    // their collision times with their neighbors were absolute times and forces do not change
-    
     auto update_task = [&](Long id) { 
-        collisions.erase( particles[id].task ); 
         Float collTime = particles[id].t + collision_time(id);
         particles[id].task = collisions.insert(RightCollision(id, collTime));
     };
 
-    update_task(id); // note: coll has been deleted now!
-
-    if (id + 1 < nParticles-1)
-        update_task(id+1);
-    else {
+    // if we were not at boundary and there is (id+2) then update it 
+    // We know there cannot have been another collision by time t!
+    if (id + 1 < nParticles-1) {
+        update_particle(id + 2, t);
+        // all up to 3 particles 
+        //    (id) <- collided -> (id+1)   (id+2)
+        // involved are now at the same time t, 
+        // so we can use collision_time without problem 
+        // note also that all other collision times further out 
+        // (e.g. (id+2) (id+3) ) are unaffected by what happened here (i.e. id+2 moving to time t)   
+        // their collision times with their neighbors were absolute times and forces do not change
+        
+        //update also the collision to (id+2)
+        update_task(id+1); 
+        // there was a nontrivial collision previously, which is now at particle id (due to swap) - delete it! 
+        collisions.erase(particles[id].task);
+    }
+    else { //boundary case
+        // the old no-task end() is at particle[id].task and needs no delete
         particles[id+1].task = collisions.end();
     }
+    //also need to update collision of id-1 and id, because id is a new particle
+    if (id > 0) {
+        update_particle(id-1, t);
+        collisions.erase(particles[id-1].task);
+        update_task(id-1);
+    }
+
+    // finally, update necessarily nontrivial task for particle id 
+    update_task(id);
+    //std::cout << "after: " << std::endl;
+    //for (auto c : collisions) {
+        //std::cout << c.id << ": " << c.collTime << " ";
+    //}
+    //std::cout << std::endl;
+    //std::cout << std::endl;
+    //std::cout << std::endl;
+
 }
