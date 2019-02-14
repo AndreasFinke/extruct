@@ -4,6 +4,8 @@
 #include <vector>
 #include <complex>
 #include <cmath>
+#include <memory>
+#include <iostream>
 
 #include "fftw3.h"
 
@@ -12,42 +14,56 @@ public:
 
     RandomField(const Long nGrid) : nGrid(nGrid) {
 
-        // set up random number generator
-
         /* allocate memory */ 
         field.reserve(nGrid);
         modes.reserve(nGrid);
     }
 
     
-    void generate(pcg32& pcg, PowerSpectrum const * spec) {
+    void generate(pcg32& pcg, PowerSpectrum* spec) {
 
+
+        Long nModes = nGrid/2+1;
         modes.clear();
-        modes.reserve(nGrid);
+        modes.resize(nModes);
 
-        for (int i = 0; i < nGrid; ++i) {
+        for (int i = 0; i < nModes; ++i) {
             Float phase = pcg.nextFloat()*2*pi;
             std::complex<double> mode;
             mode.real(std::sin(phase)); 
             mode.imag(std::cos(phase)); 
             Float k = 2*pi*i;
-            double A = 0.01; 
-            modes.push_back(mode*spec->eval(k)*A);
+            double A = 0.1; 
+            modes[i] = mode*spec->eval(k)*A;
         }
         modes[0] *= 0;
 
-        field.clear();
-        field.resize(nGrid);
 
-        //fftw_complex *in, *out;
+        // to be absolutely sure it is safe we avoid reinterpret_cast<fftw_complex*>(&mode[0]) 
+
+        fftw_complex *in;
+        double *out;
         fftw_plan p;
-        //in = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * nGrid);
-        //out = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * nGrid);
-        p = fftw_plan_dft_1d(nGrid, reinterpret_cast<fftw_complex*>(&modes[0]), reinterpret_cast<fftw_complex*>(&field[0]), FFTW_BACKWARD, FFTW_ESTIMATE);
-        fftw_execute(p); /* repeat as needed */
+        in = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * nModes);
+         for (int i = 0; i < nModes; ++i) {
+            in[i][0] = modes[i].real();
+            in[i][1] = modes[i].imag();
+        }
+        out = (double*) fftw_malloc(sizeof(double) * nGrid);
+
+        //p = fftw_plan_dft_1d(nGrid, reinterpret_cast<fftw_complex*>(&modes[0]), reinterpret_cast<fftw_complex*>(&field[0]), FFTW_BACKWARD, FFTW_ESTIMATE);
+        p = fftw_plan_dft_c2r_1d(nGrid, in, out, FFTW_ESTIMATE);
+        fftw_execute(p); 
+
+        field.clear(); 
+        field.resize(nGrid);
+        for (int i = 0; i < nGrid; ++i) {
+            field[i] = out[i];
+        }
+
         fftw_destroy_plan(p);
-        //fftw_free(in); 
-        //fftw_free(out);
+        fftw_free(in); 
+        fftw_free(out);
 
 
     }

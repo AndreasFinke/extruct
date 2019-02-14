@@ -5,14 +5,15 @@
 #include <iostream>
 
 
-
 //#include <pybind11/numpy.h>
 
 #include "pcg32.h"
 
 
 #include "main.h"
+#include "multiverse.h"
 #include "universe.h"
+#include "background.h"
 
 
 struct Entry {
@@ -41,42 +42,81 @@ void print_contents(const C<T, A>& v, const char * const separator = ", ")
 }
 
 
+#include <memory>
 
-
+#if PY == 0 
 
 int main() {
 
     START_NAMED_TIMER("Big Bang")
-    Universe universe(0, 10);
-    STOP_TIMER
 
-    START_NAMED_TIMER("density")
-    //universe.draw();
-    //universe.draw();
-    //universe.draw();
-    int k = 0;
-    for (; universe.latestTime < 400000; ++k) {
-    //for (; k<200000; ++k) {
-        double * den = universe.density();
-        //std::cout << std::endl << std::endl;
-        //for (int i = 0; i < universe.nParticles; ++i) {
-            //std::cout << i << ": " << universe.get_particle_pos(i) << " (t=" << universe.get_particle_time(i) << ") ";
-        //}
+    Background bg;
+    Multiverse mv;
+    PowerLaw * pl = new PowerLaw();
 
-        //std::cout << std::endl;
-        delete[] den; 
-        universe.update_collision();
-        //universe.synchronize();
-        //universe.draw();
-        //std::cout << std::endl << std::endl;
-    }
-    universe.synchronize();
-    for (int i = 0; i < universe.nParticles; ++i) 
-        std::cout << i << ": " << universe.get_particle_pos(i) << " (t=" << universe.get_particle_time(i) << ") ";
+    std::vector<int> uniIDs;
 
-    std::cout << "integrated " << k << " collisions. " << std::endl;
+    Universe uni(bg, pl, 0, 10);
+
+    uni.draw(pl);
+    uni.evolve(10.2);
+    //for (int i = 0; i < 1; ++i) {
+        //uniIDs.push_back(mv.bang(10, bg, pl));
+        //uniIDs.push_back(mv.bang(10, bg, pl));
+        //uniIDs.push_back(mv.bang(10, bg, pl));
+    //}
+
 
     STOP_TIMER
+
+    START_NAMED_TIMER("Evolution")
+
+    mv.evolveAll(10.2);
+   
+    STOP_TIMER
+
+
+    Measurement * ps = new PowerSpectrumObs(0, 10, 0, 10);
+
+    //mv.measure(uniIDs[0], ps);
+
+    //float * data = (float*)ps->getResult();
+    //for (int i = 0; i < 100; ++i) 
+        //std::cout << "k=" << data[i] << " P(k)=" << data[100+i] << " ";
+    //std::cout << std::endl;
+
+    delete ps;
+    //
+    //
+    //
+    //
+    //
+    //
+    //
+    //
+    //
+    //int k = 0;
+    //for (; universe.latestTime < 800000; ++k) {
+    ////for (; k<200000; ++k) {
+        //double * den = universe.density();
+        ////std::cout << std::endl << std::endl;
+        ////for (int i = 0; i < universe.nParticles; ++i) {
+            ////std::cout << i << ": " << universe.get_particle_pos(i) << " (t=" << universe.get_particle_time(i) << ") ";
+        ////}
+
+        ////std::cout << std::endl;
+        //delete[] den; 
+        //universe.update_collision();
+        ////universe.synchronize();
+        ////universe.draw();
+        ////std::cout << std::endl << std::endl;
+    //}
+    //universe.synchronize();
+    //for (int i = 0; i < universe.nParticles; ++i) 
+        //std::cout << i << ": " << universe.get_particle_pos(i) << " (t=" << universe.get_particle_time(i) << ") ";
+
+    //std::cout << "integrated " << k << " collisions. " << std::endl;
+
 
     //Float a = pcg.nextFloat();
 
@@ -131,14 +171,38 @@ int main() {
     //STOP_TIMER
 }    
 
-//PYBIND11_MODULE(extruct, m) {
+#endif
+
+#if PY == 1 
+
+PYBIND11_MODULE(extruct, m) {
     //py::class_<Universe>(m, "Universe")
         //.def(py::init<int>())
         //.def("draw", &Universe::draw)
         //.def("density", &Universe::density);
-//}
+    py::class_<Multiverse>(m, "Multiverse")
+        .def(py::init<>())
+        .def("bang", &Multiverse::bang)
+        .def("evolve", &Multiverse::evolve)
+        .def("evolveAll", &Multiverse::evolveAll);
+    py::class_<PowerSpectrum>(m, "PowerSpectrum")
+        .def(py::init<>());
+    py::class_<PowerLaw, PowerSpectrum>(m, "PowerLaw")
+        .def(py::init<>())
+        .def("eval", &PowerLaw::eval);
+    py::class_<Measurement> measurement(m, "Measurement");
+    measurement
+        .def("getResult", &Measurement::getResult)
+        .def("measure", &Measurement::measure);
+    py::class_<PowerSpectrumObs, Measurement>(m, "PowerSpectrumObs")
+        .def(py::init<int, int, Float, Float>());
+    py::class_<Background>(m, "Background")
+        .def(py::init<>());
+}
 //PYBIND11_MODULE(extruct, m) {
     //m.def("density", &density);
     //m.def("reset", &reset);
     //m.def("bigbang", &bigbang);
 //}
+//
+#endif

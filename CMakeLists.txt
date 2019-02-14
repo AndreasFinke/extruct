@@ -42,7 +42,6 @@ endif()
 set(PYTHON_EXECUTABLE "/Users/af/anaconda3/bin/python3.6" CACHE FILEPATH "python filepath" FORCE)
 
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/enoki)
-#add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/pybind11)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/tbb)
 
 set(TBB_BUILD_SHARED          ON  CACHE BOOL " " FORCE)
@@ -52,12 +51,11 @@ set(TBB_BUILD_TBBMALLOC_PROXY ON CACHE BOOL " " FORCE)
 
 include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}/enoki/include
-  #${CMAKE_CURRENT_SOURCE_DIR}/pybind11/include
+  ${CMAKE_CURRENT_SOURCE_DIR}/pybind11/include
   ${CMAKE_CURRENT_SOURCE_DIR}/tbb/include
   #${CMAKE_CURRENT_SOURCE_DIR}/Eigen
 )
 
-#include_directories(pybind11/include)
 
 #add_compile_options("-march=native")
 #add_compile_options("-fno-stack-protector")
@@ -73,8 +71,12 @@ target_sources(extruct
     main.cpp
     universe.cpp
 ) 
-
-#pybind11_add_module(extruct main.cpp universe.cpp)
-
+set_target_properties(extruct PROPERTIES COMPILE_DEFINITIONS "PY=0")
 target_link_libraries(extruct PRIVATE tbb fftw3)
-#target_link_libraries(1d PRIVATE fftw3)
+
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/pybind11)
+pybind11_add_module(extructpy main.cpp universe.cpp)
+set_target_properties(extructpy PROPERTIES COMPILE_DEFINITIONS "PY=1")
+
+target_link_libraries(extructpy PRIVATE tbb fftw3)
+set_target_properties(extructpy PROPERTIES OUTPUT_NAME extruct)

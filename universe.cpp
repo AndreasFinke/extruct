@@ -1,5 +1,3 @@
-#pragma once 
-
 #include "universe.h"
 
 #include <iostream>
@@ -15,6 +13,7 @@ void Universe::sampleParticles() {
         Float x = (Float(i)+Float(0.5)) / nParticles;
         //std::cout << x << std::endl;
         Float disp = initDisplacement.get_field(x)/nParticles;
+        std::cout << disp << " "; 
         // something like \dot(H) needed here
         Float dh = 1;
         Float vel  = disp*dh;
@@ -35,7 +34,7 @@ void Universe::sampleParticles() {
         totalVel += particles[i].v;
     std::cout << "totalVel = " << totalVel << std::endl;
 
-    // confirm order 
+    // ensure order 
     bool flag = false;
     for (Long i = 1; i < nParticles; ++i) {
         if (particles[i].x < particles[i-1].x) {
@@ -43,28 +42,32 @@ void Universe::sampleParticles() {
             break;
         }
     }
-    if (flag) 
-        std::cout << "WARNING: initial state contains stream crossing. Particles are not sorted." << std::endl;
+    if (flag)  {
+        std::cout << "Initial state contains stream crossing. Sorting particlces..." << std::endl;
+        std::sort(particles.begin(), particles.end(), [](const Particle& lhs, const Particle& rhs) { return lhs.x < rhs.x;} );
+        std::cout << "... done." << std::endl;
+    }
 
     // tasks 
     collisions.clear();
     for (Long i = 0; i < nParticles-1; ++i) {
-        Float collTime = particles[i].t + collision_time(i); 
+        update_particle_task(i);
+        //Float collTime = particles[i].t + collision_time(i); 
         //
-        std::cout << "Adding collision at " << i << " of " << nParticles << " particles" <<  std::endl;
     
         // create new collision task for this particle and store pointer to the task in the particle 
-        particles[i].task = collisions.insert(RightCollision(i, collTime));
+        //particles[i].task = collisions.insert(RightCollision(i, collTime));
 
-        if (particles[i].task == collisions.end() ) std::cout << "BUT IS END" << std::endl;
     }
     particles[nParticles-1].task = collisions.end();
 
 
 }
 
+//Float force(Long id, Long n, Float x) { 
 Float force(Long id, Long n) { 
     return Float(0.01)*((n-1)*Float(0.5)-id);
+    //return Float(0.01)*((n-1)*Float(0.5)-id + x-Float(0.5));
 }
 
 /* compute right-collision times of particle at idLeft with particle at idLeft+1
@@ -106,6 +109,14 @@ void Universe::update_collision() {
     // pick next collision
 
     auto coll = collisions.begin();
+
+    auto next = std::next(coll);
+    if (next == coll) 
+        std::cout << "aha" << std::endl;
+    if (next->collTime <= coll->collTime)
+        std::cout << "Something went wrong." << coll->collTime - next->collTime <<  std::endl;
+
+    std::cout << "pups" << std::endl;
     assert(coll == particles[coll->id].task);
     
     //std::cout << "coll part is " << coll->id << std::endl;
@@ -132,10 +143,6 @@ void Universe::update_collision() {
    
     std::swap(particles[id], particles[id+1]);
 
-    auto update_task = [&](Long id) { 
-        Float collTime = particles[id].t + collision_time(id);
-        particles[id].task = collisions.insert(RightCollision(id, collTime));
-    };
 
     // if we were not at boundary and there is (id+2) then update it 
     // We know there cannot have been another collision by time t!
@@ -150,7 +157,7 @@ void Universe::update_collision() {
         // their collision times with their neighbors were absolute times and forces do not change
         
         //update also the collision to (id+2)
-        update_task(id+1); 
+        update_particle_task(id+1); 
         // there was a nontrivial collision previously, which is now at particle id (due to swap) - delete it! 
         collisions.erase(particles[id].task);
     }
@@ -162,11 +169,11 @@ void Universe::update_collision() {
     if (id > 0) {
         update_particle(id-1, t);
         collisions.erase(particles[id-1].task);
-        update_task(id-1);
+        update_particle_task(id-1);
     }
 
     // finally, update necessarily nontrivial task for particle id 
-    update_task(id);
+    update_particle_task(id);
     //std::cout << "after: " << std::endl;
     //for (auto c : collisions) {
         //std::cout << c.id << ": " << c.collTime << " ";

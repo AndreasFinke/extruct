@@ -1,11 +1,14 @@
+#pragma once 
 
 #include "randomfield.h"
+#include "background.h"
 #include "main.h"
 #include "pcg32.h"
 
 #include <set>
 #include <vector>
 #include <algorithm>
+#include <memory>
 
 
 //
@@ -13,21 +16,19 @@
 class Universe { 
 public:
 
-    Universe(Long seed, Long nParticles) : pcg(seed), initDisplacement(512), nParticles(nParticles) {
-        draw();
+    Universe(const Background& bg, PowerSpectrum* ps, const Long seed, Long nParticles) : pcg(0, seed), initDisplacement(512), nParticles(nParticles) {
+        draw(ps);
     }
 
     ~Universe() {};
 
-    void draw() {
-        PowerSpectrum * spec = new PowerLaw();
-        initDisplacement.generate(pcg, spec);
-        delete spec;
+    void draw(PowerSpectrum* ps) {
+        initDisplacement.generate(pcg, ps);
         sampleParticles();
     }
 
-    Float get_particle_pos(Long i) { return particles[i].x; }
-    Float get_particle_time(Long i) { return particles[i].t; }
+    Float get_particle_pos(Long i) const  { return particles[i].x; }
+    Float get_particle_time(Long i) const { return particles[i].t; }
 
     void integrateBackground();
     void integrate(Float z);
@@ -52,17 +53,39 @@ public:
     }
 
     void update_collision();
-    void update_particle(Long i, Float t);
 
     void synchronize() {
         for (int i = 0; i < nParticles; ++i) 
-            update_particle(i, latestTime);
+            update_particle(i, most_recent_particle_time());
+    }
+
+    void evolve(Float t) {
+        while (next_collision_time() < t)
+            update_collision();
+
+        latestTime = t;
+        synchronize();
+    }
+
+    // returns time of last collision or current evolved time if newer 
+    Float most_recent_particle_time() { return latestTime; }
+
+    Float next_collision_time() {return (collisions.begin())->collTime; }
+
+private:
+
+    // update particle to time t assuming no collision
+    void update_particle(Long i, Float t);
+
+
+    void update_particle_task(Long i) {
+        Float collTime = particles[i].t + collision_time(i);
+        particles[i].task = collisions.insert(RightCollision(i, collTime));
     }
 
     Float latestTime = 0;
 
-private:
-    //
+    // compute right-collision time of partile idLeft
     Float collision_time(Long idLeft);
     //SomeArray<Particle> 
     // particle list must be sorted by position

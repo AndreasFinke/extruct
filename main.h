@@ -3,13 +3,21 @@
 using Float = double;
 using Long = long;
 
-//#include <pybind11/numpy.h>
-//namespace py = pybind11;
+#if PY == 1
+
+#include <pybind11/numpy.h>
+namespace py = pybind11;
+
+#endif
+
+
 #include <cmath>
 #include "pcg32.h"
 
-static constexpr auto pi = 3.141592653589793238462643383279502884197169399375105820974944592307816;
+#include <complex>
 
+static constexpr auto pi = 3.141592653589793238462643383279502884197169399375105820974944592307816;
+using namespace std::complex_literals;
 
 template<class CollisionTask> 
 struct TaskParticle {
@@ -23,7 +31,7 @@ struct TaskParticle {
 class PowerSpectrum {
 public:
     virtual ~PowerSpectrum() {}
-    virtual Float eval(Float k) const = 0;
+    virtual Float eval(Float k) const  {}
 };
 
 class PowerLaw : public PowerSpectrum {
