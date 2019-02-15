@@ -20,6 +20,13 @@ public:
         draw(ps);
     }
 
+    // force moving, not only for performance (e.g. because of particles std::vector):
+    // we cannot copy the collisions std::multiset tree and expect the iterator on it in Particle to still be valid
+    // this crashes the evolution after Multiverse::bang() ! 
+    Universe& operator=(const Universe&) = delete;
+    Universe(const Universe&) = delete;
+    Universe(Universe&&) = default;
+
     ~Universe() {};
 
     void draw(PowerSpectrum* ps) {
@@ -35,22 +42,6 @@ public:
 
     const Long nParticles; 
 
-    auto density() {
-        int res = 512; 
-        //py::array_t<double> ret({1,res});
-        //double * ret_ptr = ret.mutable_data();
-        double * ret = new double[res];
-        double * ret_ptr  = ret;
-        memset(ret_ptr, 0, res*sizeof(double));
-        for (int i = 0; i < nParticles; ++i) {
-            Float x = get_particle_pos(i);
-            int idx = x * res;
-            if (idx > res - 1) idx = res - 1;
-            if (idx < 0) idx = 0;
-            ret_ptr[idx] += 1;
-        }
-        return ret;
-    }
 
     void update_collision();
 
@@ -95,6 +86,8 @@ private:
 
 
     struct RightCollision {
+        //RightCollision(RightCollision&&) = default;
+        //RightCollision(const RightCollision&) = default;
         RightCollision(Long particleId, Float collisionTime) : id(particleId), collTime(collisionTime) {} 
         /* the idx-th particle in  to collide with its right neighbor */  
         Long id = 0;

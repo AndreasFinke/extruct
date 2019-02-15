@@ -31,14 +31,15 @@ struct TaskParticle {
 class PowerSpectrum {
 public:
     virtual ~PowerSpectrum() {}
-    virtual Float eval(Float k) const  {}
+    virtual Float eval(Float k) const  = 0;
 };
 
 class PowerLaw : public PowerSpectrum {
 public: 
+    Float A = 0.1;
     virtual ~PowerLaw() {}
     virtual Float eval(Float k) const { 
-        return 1/(0.1*k+1); 
+        return A/(0.1*k+1); 
     }
 };
 

@@ -33,8 +33,7 @@ public:
             mode.real(std::sin(phase)); 
             mode.imag(std::cos(phase)); 
             Float k = 2*pi*i;
-            double A = 0.1; 
-            modes[i] = mode*spec->eval(k)*A;
+            modes[i] = mode*spec->eval(k);
         }
         modes[0] *= 0;
 

@@ -110,13 +110,6 @@ void Universe::update_collision() {
 
     auto coll = collisions.begin();
 
-    auto next = std::next(coll);
-    if (next == coll) 
-        std::cout << "aha" << std::endl;
-    if (next->collTime <= coll->collTime)
-        std::cout << "Something went wrong." << coll->collTime - next->collTime <<  std::endl;
-
-    std::cout << "pups" << std::endl;
     assert(coll == particles[coll->id].task);
     
     //std::cout << "coll part is " << coll->id << std::endl;

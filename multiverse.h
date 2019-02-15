@@ -41,12 +41,13 @@ public:
     }
 
     void measure(int universeID, Measurement* m) {
+        assert(universeID < universes.size());
         m->measure(universes[universeID], 1);
     }
 
     void measureAll(Measurement* m) {
         
-        for (auto u : universes) 
+        for (auto& u : universes) 
             m->measure(u, universes.size());
     }
 
