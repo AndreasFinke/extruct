@@ -51,52 +51,41 @@ int main() {
     START_NAMED_TIMER("Big Bang")
 
     Background bg;
+    bg.integrate();
+    std::cout << bg.isIntegrated;
     Multiverse mv;
     PowerLaw * pl = new PowerLaw();
 
-    mv.bang(100, bg, pl);
-
-    STOP_TIMER
-
-    START_NAMED_TIMER("Evolution")
-
-    mv.evolveAll(0.5);
-   
-    STOP_TIMER
-
-
-    Measurement * ps = new PowerSpectrumObs(0, 10, 0, 10);
-    Measurement * d =  new DensityObs(100);
-
-
-    mv.measure(0, d);
-    float * d_data = (float*)d->getResult();
-
-    std::cout << std::endl << std::endl << "Density = ";
-    for (int i = 0; i < 100; ++i) {
-        std::cout << d_data[i] << " " << d_data[100+i] << std::endl;
+    for (int i = 0; i < 10; ++i) {
+        mv.bang(1000, bg, pl);
     }
-    std::cout <<std::endl << std::endl;
 
-    //mv.measure(uniIDs[0], ps);
+    STOP_TIMER
 
-    //float * data = (float*)ps->getResult();
-    //for (int i = 0; i < 100; ++i) 
-        //std::cout << "k=" << data[i] << " P(k)=" << data[100+i] << " ";
-    //std::cout << std::endl;
+}
+    //START_NAMED_TIMER("Evolution")
 
-    delete ps;
-    //
-
-
+    //mv.evolveAll(0.5);
+   
     //STOP_TIMER
 
-    ////print_contents(q);
 
-    //START_NAMED_TIMER("set")
-        
-    //STOP_TIMER
-}    
+    //Measurement * ps = new PowerSpectrumObs(0, 10, 1);
+    //Measurement * d =  new DensityObs(100);
+
+
+    ////mv.measure(0, d);
+    //float * d_data = (float*)d->getResult();
+
+    //std::cout << std::endl << std::endl << "Density = ";
+    //for (int i = 0; i < 100; ++i) {
+        ////std::cout << d_data[i] << " " << d_data[100+i] << std::endl;
+    //}
+    //std::cout <<std::endl << std::endl;
+
+    //delete ps;
+
+//}    
 
 #endif
 
@@ -126,10 +115,20 @@ PYBIND11_MODULE(extruct, m) {
         .def("measure", &Measurement::measure);
     py::class_<DensityObs, Measurement>(m, "DensityObs")
         .def(py::init<int>());
+    py::class_<PhaseSpaceDensityObs, Measurement>(m, "PhaseSpaceDensityObs")
+        .def(py::init<int>());
     py::class_<PowerSpectrumObs, Measurement>(m, "PowerSpectrumObs")
-        .def(py::init<int, int, Float, Float>());
+        .def(py::init<int, int, int>());
     py::class_<Background>(m, "Background")
-        .def(py::init<>());
+        .def(py::init<>())
+        .def(py::init<Float, Float, Float, Float, Float>())
+        .def("integrate", &Background::integrate)
+        .def("getScaleFactor", &Background::getScaleFactor)
+        .def("getPhysTime", &Background::getPhysTime)
+        .def("getD1", &Background::getD1)
+        .def("getD2", &Background::getD2)
+        .def("getD1d", &Background::getD1d);
+        .def("getD2d", &Background::getD2d);
 }
 
 #endif

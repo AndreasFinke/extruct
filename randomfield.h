@@ -75,14 +75,6 @@ public:
 
     /* Assuming to be in the linear regime, the density is related to the displacement of an Eulerian grid in a simple way. Similarly, this allows us to get the velocities from the time derivative. The result will be rather uniform, which is also good, as averaging different nonlinear realizations is not a good strategy (this Monte Carlo strategy averaging results for delta-function ICs that average to the right ones makes sense only for linear evolution). Zeldovich holds also at later times in 1D, but in the nonlinear regime it becomes more difficult to get the right initial displacements that give a given nonlinear density. One could find any other method to put particles according to the random field at any time and get the displacements from comparing to the nearest free Eulerian grid position... but all of it is simple in the linear regime. */
 
-    //std::vector<Particle> sample(Float DH)  { 
-        //std::vector<Particle> p(nParticles);
-        //for (int i = 0; i < nParticles; ++i) {
-            //Float psi = 1;
-            //p.push_back(Particle(psi, DH*psi));
-        //}
-        //return p;
-    //}
 
 private:
     std::vector<double> field;

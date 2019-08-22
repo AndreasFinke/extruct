@@ -38,11 +38,6 @@ public:
 #if PY == 1 
         py::array_t<float> ret({rows,cols});
         float * ret_ptr = ret.mutable_data();
-        //std::cout << std::endl << std::endl << "Density = ";
-        //for (int i = 0; i <100; ++i) {
-            //std::cout << ((float*)data)[i] << " " << ((float*)data)[100+i] << std::endl;
-        //}
-        //std::cout <<std::endl << std::endl;
         std::memcpy(ret_ptr, (float*) data, bytes) ;
         return ret;
 #else
@@ -110,6 +105,67 @@ private:
 
 
 };
+
+class PhaseSpaceDensityObs : public Measurement {
+
+
+public:
+
+    PhaseSpaceDensityObs(int res) : Measurement(2*4*res+4*res*res), res(res) {
+        dataTypeSize = 4;
+        rows = 2+res;
+        cols = res;
+        datap = (float *) data;
+        reset();
+    }
+   
+    virtual void reset() { 
+        for (int i = 0; i < res; ++i) {
+           datap[i] = 0 +  1*i/Float(res); 
+           datap[res+i] = 0;
+           for (int j = 0; j < res; ++j) 
+               datap[2*res + i*res + j] = 0;
+        }
+    }
+
+    virtual ~PhaseSpaceDensityObs() {} 
+
+    virtual void measure(const Universe& universe, int N) {
+        Measurement::measure(universe, N);
+
+        float A = 1.f / N; 
+
+        float minV = 0;
+        float maxV = 0;
+
+        for (int i = 0; i < universe.nParticles; ++i) {
+            if (universe.get_particle_vel(i) > maxV)
+                maxV = universe.get_particle_vel(i);
+            if (universe.get_particle_vel(i) < minV)
+                minV = universe.get_particle_vel(i);
+        }
+        for (int i = 0; i < res; ++i)
+            datap[res+i] = minV + float(i)/(res-1)*(maxV-minV);
+        for (int i = 0; i < universe.nParticles; ++i) {
+            Float x = universe.get_particle_pos(i);
+            Float v = universe.get_particle_vel(i);
+            int idx = x * res;
+            int idx_v = (v-minV)/(maxV-minV) * res;
+            if (idx > res - 1) idx = res - 1;
+            if (idx < 0) idx = 0;
+            if (idx_v > res - 1) idx_v = res - 1;
+            if (idx_v < 0) idx_v = 0;
+            datap[2*res + idx*res + idx_v] += 1;
+        }
+
+    }
+private:
+
+    int res;
+    float* datap; 
+
+
+};
 #include <complex>
 using namespace std::complex_literals;
 
@@ -118,7 +174,7 @@ class PowerSpectrumObs : public Measurement {
 
 public:
 
-    PowerSpectrumObs(int method, int res, Float kmin, Float kmax) : Measurement(4*res*2), method(method), res(res), kmin(kmin), kmax(kmax) {
+    PowerSpectrumObs(int method, int res, int skip) : Measurement(4*res*2), method(method), res(res), skip(skip){
         dataTypeSize = 4;
         rows = 2;
         cols = res;
@@ -128,7 +184,7 @@ public:
     
     virtual void reset() { 
         for (int i = 0; i < res; ++i) {
-           datap[i] = kmin + (kmax-kmin)*i/Float(res); 
+           datap[i] = 2*pi*i*skip; 
            datap[i+res] = 0;
         }
     }
@@ -143,12 +199,15 @@ public:
         if (method == 0) 
         {
             for (int i = 0; i < res; ++i) {
-                std::complex<float> c = 0;
+                //std::complex<float> c = 0;
+                double rs = 0, rc = 0;
                 for (int j = 0; j < universe.nParticles; ++j) {
-                    c += A*std::exp(1if * float(datap[i] * universe.get_particle_pos(j)));
-                    std::cout << c; 
+                    //c += A*std::exp(1if * float(datap[i] * universe.get_particle_pos(j)));
+                    rs += std::sin(datap[i] * universe.get_particle_pos(j));
+                    rc += std::cos(datap[i] * universe.get_particle_pos(j));
                 }
-                datap[res+i] += std::abs(c);
+                //datap[res+i] += std::abs(c);
+                datap[res+i] += A*std::sqrt(rs*rs+rc*rc);
             }
         }
 
@@ -158,9 +217,8 @@ private:
 
     int method;
     int res;
+    int skip;
 
-    float kmin;
-    float kmax;
     float* datap; 
 
 

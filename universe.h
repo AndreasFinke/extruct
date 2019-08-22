@@ -11,16 +11,15 @@
 #include <memory>
 
 
-//
-// then generate RightCollision events list 
 class Universe { 
 public:
 
-    Universe(const Background& bg, PowerSpectrum* ps, const Long seed, Long nParticles) : pcg(0, seed), initDisplacement(512), nParticles(nParticles) {
+    Universe(const Background& bg, PowerSpectrum* ps, const Long seed, Long nParticles) : pcg(0, seed), initDisplacement(512), nParticles(nParticles), bg(bg) {
+        std::cout << "Universe ctor. " << bg.isIntegrated << std::endl; 
         draw(ps);
     }
 
-    // force moving, not only for performance (e.g. because of particles std::vector):
+    // force move construction, not only for performance (e.g. because of particles std::vector):
     // we cannot copy the collisions std::multiset tree and expect the iterator on it in Particle to still be valid
     // this crashes the evolution after Multiverse::bang() ! 
     Universe& operator=(const Universe&) = delete;
@@ -35,13 +34,10 @@ public:
     }
 
     Float get_particle_pos(Long i) const  { return particles[i].x; }
+    Float get_particle_vel(Long i) const  { return particles[i].v; }
     Float get_particle_time(Long i) const { return particles[i].t; }
 
-    void integrateBackground();
-    void integrate(Float z);
-
     const Long nParticles; 
-
 
     void update_collision();
 
@@ -75,12 +71,13 @@ private:
     }
 
     Float latestTime = 0;
-
     // compute right-collision time of partile idLeft
     Float collision_time(Long idLeft);
     //SomeArray<Particle> 
     // particle list must be sorted by position
     //
+
+    Background bg; 
 
     pcg32 pcg;
 
@@ -117,7 +114,6 @@ private:
 
     void sampleParticles(); 
 
-    //std::vector<Particle<>> particles;
     RandomField initDisplacement;
     Float find_max_timestep();
     void integrate_step(Float timestep);

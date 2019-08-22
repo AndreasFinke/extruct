@@ -12,8 +12,8 @@ void Universe::sampleParticles() {
     for (Long i = 0; i < nParticles; ++i) {
         Float x = (Float(i)+Float(0.5)) / nParticles;
         //std::cout << x << std::endl;
-        Float disp = initDisplacement.get_field(x)/nParticles;
-        std::cout << disp << " "; 
+        Float disp = initDisplacement.get_field(x);
+        //std::cout << disp << " "; 
         // something like \dot(H) needed here
         Float dh = 1;
         Float vel  = disp*dh;
@@ -24,25 +24,20 @@ void Universe::sampleParticles() {
         particles[i].t = 0;
     }
 
-    //set total momentum to zero
+    // set total momentum to zero
     totalVel /= nParticles;
-    std::cout << "totalVel = " << totalVel << std::endl;
     for (Long i = 0; i < nParticles; ++i) 
         particles[i].v -= totalVel;
-    totalVel = 0;
-    for (Long i = 0; i < nParticles; ++i) 
-        totalVel += particles[i].v;
-    std::cout << "totalVel = " << totalVel << std::endl;
 
-    // ensure order 
-    bool flag = false;
+    // ensure order
+    bool unsorted = false;
     for (Long i = 1; i < nParticles; ++i) {
         if (particles[i].x < particles[i-1].x) {
-            flag = true;
+            unsorted = true;
             break;
         }
     }
-    if (flag)  {
+    if (unsorted)  {
         std::cout << "Initial state contains stream crossing. Sorting particlces..." << std::endl;
         std::sort(particles.begin(), particles.end(), [](const Particle& lhs, const Particle& rhs) { return lhs.x < rhs.x;} );
         std::cout << "... done." << std::endl;
@@ -50,17 +45,10 @@ void Universe::sampleParticles() {
 
     // tasks 
     collisions.clear();
-    for (Long i = 0; i < nParticles-1; ++i) {
+    for (Long i = 0; i < nParticles-1; ++i) 
         update_particle_task(i);
-        //Float collTime = particles[i].t + collision_time(i); 
-        //
-    
-        // create new collision task for this particle and store pointer to the task in the particle 
-        //particles[i].task = collisions.insert(RightCollision(i, collTime));
 
-    }
     particles[nParticles-1].task = collisions.end();
-
 
 }
 
@@ -87,7 +75,10 @@ Float Universe::collision_time(Long idLeft) {
     Float F = force(1, 2) - force(2, 2);
     F = 1/F;
     vd *= F;
-    return vd + sqrt(vd*vd+2*xd*F); //TODO improve numerics
+    //if (vd > 0)
+        return vd + sqrt(vd*vd+2*xd*F); //TODO improve numerics
+    //else
+        //return (-2*xd*F)/(vd - sqrt(vd*vd+2*xd*F));
 }
 
 
@@ -101,43 +92,36 @@ void Universe::update_particle(Long id, Float t) {
 
 void Universe::update_collision() {
 
-    //std::cout << "before: " << std::endl;
-    //for (auto c : collisions) {
-        //std::cout << c.id << ": " << c.collTime << " ";
-    //}
-    //std::cout << std::endl;
     // pick next collision
 
     auto coll = collisions.begin();
-
     assert(coll == particles[coll->id].task);
-    
-    //std::cout << "coll part is " << coll->id << std::endl;
-    // update two colliding particles
-   
+
     Float t = coll->collTime;
     latestTime = t;
     Long id = coll->id;
+    
+    // std::cout << "coll part is " << id << std::endl;
 
     // this collision is not needed anymore. 
-    // the tasks of particle at id (still pointing to coll)
-    // (and potentially id+1) will be updated below 
+
     collisions.erase(coll);
+
+    // update two colliding particles
+    // (the _tasks_ of particle at id (still pointing to coll) and neighbors will be updated below)
 
     update_particle(id, t);
     update_particle(id+1, t);
 
-    //positions should now agree - check 
-
+    // positions should now agree - check 
     assert(std::fabs(particles[id].x - particles[id+1].x) < 0.00000001);
-    //std::cout << std::fabs(particles[coll->id].x - particles[coll->id+1].x) << std::endl;
 
-    // swap their positions in sorted particle list since that's their future 
+    // swap colliding particle positions in sorted particle list - that's in their future 
    
     std::swap(particles[id], particles[id+1]);
 
 
-    // if we were not at boundary and there is (id+2) then update it 
+    // if we were not at boundary and (id+2) exists then update it 
     // We know there cannot have been another collision by time t!
     if (id + 1 < nParticles-1) {
         update_particle(id + 2, t);
@@ -149,30 +133,28 @@ void Universe::update_collision() {
         // (e.g. (id+2) (id+3) ) are unaffected by what happened here (i.e. id+2 moving to time t)   
         // their collision times with their neighbors were absolute times and forces do not change
         
-        //update also the collision to (id+2)
+        //update the collision to (id+2)
         update_particle_task(id+1); 
-        // there was a nontrivial collision previously, which is now at particle id (due to swap) - delete it! 
+        // there was a nontrivial collision with id+2 previously, which is now at particle id (due to swap) - delete it! 
         collisions.erase(particles[id].task);
     }
-    else { //boundary case
-        // the old no-task end() is at particle[id].task and needs no delete
+    else { // case that id+1 is the boundary
+        // set the new end
         particles[id+1].task = collisions.end();
+        // the old no-task end() is at particle[id].task and needs no delete
+        // (will be overwritten below)
     }
-    //also need to update collision of id-1 and id, because id is a new particle
+    // if id-1 exists, update its collision with new id (which was id+1) 
     if (id > 0) {
+        // bring id-1 to time t as well
         update_particle(id-1, t);
+        // old collision invalid, remove
         collisions.erase(particles[id-1].task);
+        // id-1 and id are at time t, can use: 
         update_particle_task(id-1);
     }
 
-    // finally, update necessarily nontrivial task for particle id 
+    // finally, and in any case, update necessarily nontrivial task for particle id 
     update_particle_task(id);
-    //std::cout << "after: " << std::endl;
-    //for (auto c : collisions) {
-        //std::cout << c.id << ": " << c.collTime << " ";
-    //}
-    //std::cout << std::endl;
-    //std::cout << std::endl;
-    //std::cout << std::endl;
 
 }

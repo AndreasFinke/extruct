@@ -5,6 +5,7 @@
 #include "main.h"
 #include "measurement.h"
 
+#include "tbb/tbb.h"
 
 #include <vector>
 #include <memory>
@@ -32,11 +33,16 @@ public:
     }
 
     void evolveAll(Float t) {
-
-        for (int i = 0; i < universes.size(); ++i) {
-            std::cout << "evolving universe " << i << " until t=" << t << std::endl;
-            universes[i].evolve(t);
-        }
+        tbb::parallel_for(
+            tbb::blocked_range<size_t>(0, universes.size(), 1),
+                [&](tbb::blocked_range<size_t> range) {
+                    for (size_t i = range.begin(); i < range.end(); ++i) {
+                    //for (int i = 0; i < universes.size(); ++i) {
+                        std::cout << "evolving universe " << i << " until t=" << t << std::endl;
+                        universes[i].evolve(t);
+                    }
+                }
+        );
 
     }
 

@@ -24,7 +24,6 @@ struct TaskParticle {
     TaskParticle() : x(0), v(0), t(0) {} 
     TaskParticle(Float x, Float v) : x(x), v(v) {}
     Float x, v, t;
-    Float collTime = -1;
     CollisionTask task;
 };
 
@@ -39,7 +38,8 @@ public:
     Float A = 0.1;
     virtual ~PowerLaw() {}
     virtual Float eval(Float k) const { 
-        return A/(0.1*k+1); 
+        //return A/(0.1*k+1); 
+        return A*k/(100+0*k*k*k*k);
     }
 };
 

@@ -39,7 +39,7 @@ if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -stdlib=libc++ -lc++abi")
 endif()
 
-set(PYTHON_EXECUTABLE "/Users/af/anaconda3/bin/python3.6" CACHE FILEPATH "python filepath" FORCE)
+#set(PYTHON_EXECUTABLE "/Users/af/anaconda3/bin/python3.6" CACHE FILEPATH "python filepath" FORCE)
 
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/enoki)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/tbb)
