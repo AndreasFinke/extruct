@@ -10,7 +10,7 @@ void Universe::sampleParticles() {
     // fill particles according to displacement field 
     Float totalVel = 0;
     for (Long i = 0; i < nParticles; ++i) {
-        Float x = (Float(i)+Float(0.5)) / nParticles;
+        Float x = L*(Float(i)+Float(0.5)) / nParticles;
         //std::cout << x << std::endl;
         Float disp = initDisplacement.get_field(x);
         //std::cout << disp << " "; 
@@ -68,26 +68,101 @@ Float force(Long id, Long n) {
  * note: the rightmost particle is ignored and task list will have one element less than number of particles. 
  * It may still collide and its left neighbor may become the rightmost particle. 
 */
+//Float Universe::collision_time(Long idLeft) {
+    //assert( std::fabs(particles[idLeft].t - particles[idLeft+1].t) < 0.00000000001 );
+    //Float vd = particles[idLeft+1].v - particles[idLeft].v;
+    //Float xd = particles[idLeft+1].x - particles[idLeft].x;
+    //Float F = force(1, 2) - force(2, 2);
+    //F = 1/F;
+    //vd *= F;
+    ////if (vd > 0)
+        //return vd + sqrt(vd*vd+2*xd*F); //TODO improve numerics
+    ////else
+        ////return (-2*xd*F)/(vd - sqrt(vd*vd+2*xd*F));
+//}
+
 Float Universe::collision_time(Long idLeft) {
-    assert( std::fabs(particles[idLeft].t - particles[idLeft+1].t) < 0.00000000001 );
-    Float vd = particles[idLeft+1].v - particles[idLeft].v;
-    Float xd = particles[idLeft+1].x - particles[idLeft].x;
-    Float F = force(1, 2) - force(2, 2);
-    F = 1/F;
-    vd *= F;
-    //if (vd > 0)
-        return vd + sqrt(vd*vd+2*xd*F); //TODO improve numerics
-    //else
-        //return (-2*xd*F)/(vd - sqrt(vd*vd+2*xd*F));
+    Float tau0 = particles[idLeft].t; 
+    assert( std::fabs(tau0 - particles[idLeft+1].t) < 0.00000000001 );
+    Float Deltad0 = particles[idLeft+1].v - particles[idLeft].v;
+    Float Delta0 = particles[idLeft+1].x - particles[idLeft].x;
+    assert( Delta0 > -0.00001 );
+
+    //Float a0 = bg.getScaleFactor(tau0);
+    Float D10 = bg.getD1(tau0);
+    Float D20 = bg.getD2(tau0);
+    Float D1d0 = bg.getD1d(tau0);
+    Float D2d0 = bg.getD2d(tau0);
+    Float Pec0 = bg.getPec(tau0)*Dx;
+    Float Pecd0 = bg.getPecd(tau0)*Dx;
+
+    Float c1 = - (Delta0 - Pec0)*D2d0 + (Deltad0 - Pecd0)*D20;
+    Float c2 =   (Delta0 - Pec0)*D1d0 - (Deltad0 - Pecd0)*D10;
+
+    int idxLast = bg.NTABLE - 1;
+
+    auto distance = [c1, c2, Dx=Dx, &bg=bg] (int idx) { return c1*bg.D1[idx] + c2*bg.D2[idx] + bg.Pec[idx]*Dx; } ;
+    auto distanced = [c1, c2, Dx=Dx, &bg=bg] (int idx) { return c1*bg.D1d[idx] + c2*bg.D2d[idx] + bg.Pecd[idx]*Dx; } ;
+
+    /* there is at most one zero crossing into the negative in the future. if the function is positive at the end, there is no zero or a zero is in the future after the final time considered. 
+       we just return the final time plus one plus the particle index here */
+    if (distance(idxLast) > 0)
+        return bg.taufin + 1 + idLeft;
+    
+    /* else, find sign change in the future */
+
+    int idxLeft = std::min(int(tau0/bg.dtau), idxLast-1);
+
+    /* add one to be in the future of the start time */
+    int idxR = idxLeft + 1;
+    /* walk until sign changed; note it will happen at the latest at idxLast because of the previous if statement*/
+    for (; distance(idxR) > 0; ++idxR);
+    /* the zero is contained in the interval formed with the previous index */ 
+    int idxL = idxR - 1;
+
+    Float yL = distance(idxL);
+    Float yR = distance(idxR);
+    Float DyL = distanced(idxL);
+    Float DyR = distanced(idxR);
+
+    Float mL = bg.getOm()*1.5*bg.a[idxL];
+    Float fL = -Dx*mL;
+    Float mR = bg.getOm()*1.5*bg.a[idxR];
+    Float fR = -Dx*mR;
+    Float DDyL = mL*yL + fL;
+    Float DDyR = mR*yR + fR;
+
+    return Spline::find_zero(yL, DyL, DDyL, yR, DyR, DDyR, idxL*bg.dtau, bg.dtau);
+
 }
 
 
-void Universe::update_particle(Long id, Float t) {
-    Float T = t - particles[id].t;
-    particles[id].t =  t;
+void Universe::update_particle(Long id, Float tau) {
+    Float fac = (id - (nParticles-1)*Float(0.5))*Dx;
+    Float tau0 = particles[id].t;
+    //Float T = tau - tau0;
+    particles[id].t =  tau;
 
-    particles[id].x += particles[id].v * T + Float(0.5)*T*T*force(id, nParticles);
-    particles[id].v += T * force(id, nParticles); 
+    Float a0 = bg.getScaleFactor(tau0);
+    Float D10 = bg.getD1(tau0);
+    Float D20 = bg.getD2(tau0);
+    Float D1d0 = bg.getD1d(tau0);
+    Float D2d0 = bg.getD2d(tau0);
+    Float Pec0 = bg.getPec(tau0)*fac;
+    Float Pecd0 = bg.getPecd(tau0)*fac;
+
+    Float c1 = - (particles[id].x - Pec0)*D2d0 + (particles[id].v - Pecd0)*D20;
+    Float c2 =   (particles[id].x - Pec0)*D1d0 - (particles[id].v - Pecd0)*D10;
+
+    int idxLast = bg.NTABLE - 1;
+
+    //std::cout << "Particle " << id << " was at " << particles[id].x << " and is now (tau= " << tau << ") at ";
+    particles[id].x = c1*bg.getD1(tau) + c2*bg.getD2(tau) + bg.getPec(tau)*fac; 
+    //std::cout << particles[id].x << std::endl;
+    particles[id].v = c1*bg.getD1d(tau) + c2*bg.getD2d(tau) + bg.getPecd(tau)*fac; 
+
+    //particles[id].x += particles[id].v * T + Float(0.5)*T*T*force(id, nParticles);
+    //particles[id].v += T * force(id, nParticles); 
 }
 
 void Universe::update_collision() {
@@ -101,7 +176,9 @@ void Universe::update_collision() {
     latestTime = t;
     Long id = coll->id;
     
-    // std::cout << "coll part is " << id << std::endl;
+     //std::cout << "coll part is " << id << std::endl;
+    
+    nCollisions++; 
 
     // this collision is not needed anymore. 
 
@@ -114,7 +191,8 @@ void Universe::update_collision() {
     update_particle(id+1, t);
 
     // positions should now agree - check 
-    assert(std::fabs(particles[id].x - particles[id+1].x) < 0.00000001);
+    //std::cout << "pos should now agree - id " << id << " error " << std::fabs(particles[id].x - particles[id+1].x)/particles[id].x << std::endl; 
+    //assert(std::fabs(particles[id].x - particles[id+1].x) < 0.00000001);
 
     // swap colliding particle positions in sorted particle list - that's in their future 
    
@@ -125,23 +203,23 @@ void Universe::update_collision() {
     // We know there cannot have been another collision by time t!
     if (id + 1 < nParticles-1) {
         update_particle(id + 2, t);
-        // all up to 3 particles 
-        //    (id) <- collided -> (id+1)   (id+2)
-        // involved are now at the same time t, 
-        // so we can use collision_time without problem 
+        // the particles particles 
+        //    (id) <- collided and swapped -> (id+1)   (id+2)
+        // are now at the same time t, 
+        // so we can use collision_time called by update_particle_task without problem and find new right collision time of (id+1) (id+2)
         // note also that all other collision times further out 
         // (e.g. (id+2) (id+3) ) are unaffected by what happened here (i.e. id+2 moving to time t)   
         // their collision times with their neighbors were absolute times and forces do not change
         
-        //update the collision to (id+2)
+        //update the collision of (id+1) with (id+2)
         update_particle_task(id+1); 
         // there was a nontrivial collision with id+2 previously, which is now at particle id (due to swap) - delete it! 
         collisions.erase(particles[id].task);
     }
     else { // case that id+1 is the boundary
-        // set the new end
+        // set the new no-task end() to the boundary particle 
         particles[id+1].task = collisions.end();
-        // the old no-task end() is at particle[id].task and needs no delete
+        // from before, no-task end() is still also assigned to particle[id].task, but needs no delete
         // (will be overwritten below)
     }
     // if id-1 exists, update its collision with new id (which was id+1) 

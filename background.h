@@ -6,6 +6,8 @@
 #include <utility>
 
 struct Background {
+
+    friend class Universe; 
     // default is standard LCDM without radiation but curvature 
 
     Background() {} //use standard parameters (see in class definition)
@@ -44,12 +46,13 @@ struct Background {
             integrate();
     }
 
+
 private:
     Float zin = 100, zfin = 0, Om = 0.3, h = 0.7, hf = 0.7, Oc = 0;
     Float taufin = 0;
     Float dtau = 1;
 
-    static constexpr int NTABLE = 128;
+    static constexpr int NTABLE = 512;
 
     Float a[NTABLE];
     Float D1[NTABLE];
@@ -74,6 +77,9 @@ private:
     }
 
 public:
+
+    Float getOm() {return Om;} 
+    Float getFinalTau() { return taufin; }
 
     Float getScaleFactor(Float tau) {
         int idx;
@@ -128,6 +134,7 @@ public:
             return D1d[NTABLE-1];
 
         Float m = 1.5*Om*h*h;
+        //return Spline::DDy(D1[idx], D1d[idx], D1[idx+1], D1d[idx+1], taul, dtau, tau);
         return Spline::y(D1d[idx], m*a[idx]*D1[idx], D1d[idx+1], m*a[idx+1]*D1[idx+1], taul, dtau, tau);
     }
 
@@ -137,15 +144,35 @@ public:
         std::tie(idx, taul) = getTimeBin(tau);
 
         if (idx == NTABLE-1)
-            return D1d[NTABLE-1];
+            return D2d[NTABLE-1];
 
         Float m = 1.5*Om*h*h;
+        //return Spline::Dy(D1d[idx], m*a[idx]*D1[idx], D1d[idx+1], m*a[idx+1]*D1[idx+1], taul, dtau, tau);
         return Spline::y(D2d[idx], m*a[idx]*D2[idx], D2d[idx+1], m*a[idx+1]*D2[idx+1], taul, dtau, tau);
     }
-    //Float getD1(Float tau);
-    //Float getD2(Float tau);
-    //Float getD1d(Float tau);
-    //Float getD2d(Float tau);
+    
+    Float getPec(Float tau) {
+        int idx;
+        Float taul;
+        std::tie(idx, taul) = getTimeBin(tau);
+
+        if (idx == NTABLE-1)
+            return Pec[NTABLE-1];
+
+        return Spline::y(Pec[idx], Pecd[idx], Pec[idx+1], Pecd[idx+1], taul, dtau, tau);
+    }
+
+    Float getPecd(Float tau) {
+        int idx;
+        Float taul;
+        std::tie(idx, taul) = getTimeBin(tau);
+
+        if (idx == NTABLE-1)
+            return Pecd[NTABLE-1];
+
+        Float m = 1.5*Om*h*h;
+        return Spline::y(Pecd[idx], m*a[idx]*(Pec[idx]-1), Pecd[idx+1], m*a[idx+1]*(Pec[idx+1]-1), taul, dtau, tau);
+    }
 
     void integrate() {
 
@@ -228,4 +255,3 @@ public:
     }
 };
 
-#include <vector>

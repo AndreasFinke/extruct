@@ -12,9 +12,12 @@
 
 
 class Universe { 
+
+    friend class Multiverse;
+
 public:
 
-    Universe(const Background& bg, PowerSpectrum* ps, const Long seed, Long nParticles) : pcg(0, seed), initDisplacement(512), nParticles(nParticles), bg(bg) {
+    Universe(const Background& bg, PowerSpectrum* ps, Float L, const Long seed, Long nParticles) : L(L), pcg(0, seed), initDisplacement(512), nParticles(nParticles), bg(bg), Dx(L/(nParticles-1)) {
         std::cout << "Universe ctor. " << bg.isIntegrated << std::endl; 
         draw(ps);
     }
@@ -38,6 +41,9 @@ public:
     Float get_particle_time(Long i) const { return particles[i].t; }
 
     const Long nParticles; 
+    const Float L; 
+    const Float Dx;
+
 
     void update_collision();
 
@@ -61,12 +67,14 @@ public:
 
 private:
 
+    long nCollisions = 0;
     // update particle to time t assuming no collision
     void update_particle(Long i, Float t);
 
 
     void update_particle_task(Long i) {
-        Float collTime = particles[i].t + collision_time(i);
+        //Float collTime = particles[i].t + collision_time(i);
+        Float collTime = collision_time(i);
         particles[i].task = collisions.insert(RightCollision(i, collTime));
     }
 

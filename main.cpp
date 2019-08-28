@@ -52,23 +52,24 @@ int main() {
 
     Background bg;
     bg.integrate();
-    std::cout << bg.isIntegrated;
+
+    std::cout <<  "Final tau = " << bg.getFinalTau() << std::endl;
     Multiverse mv;
     PowerLaw * pl = new PowerLaw();
+    pl->A = 0.0004;
 
-    for (int i = 0; i < 10; ++i) {
-        mv.bang(1000, bg, pl);
+    for (int i = 0; i < 1; ++i) {
+        mv.bang(2000, bg, pl, 1);
     }
 
     STOP_TIMER
 
-}
-    //START_NAMED_TIMER("Evolution")
+    START_NAMED_TIMER("Evolution")
 
-    //mv.evolveAll(0.5);
+    mv.evolveAll(bg.getFinalTau());
    
-    //STOP_TIMER
-
+    STOP_TIMER
+}
 
     //Measurement * ps = new PowerSpectrumObs(0, 10, 1);
     //Measurement * d =  new DensityObs(100);
@@ -127,8 +128,10 @@ PYBIND11_MODULE(extruct, m) {
         .def("getPhysTime", &Background::getPhysTime)
         .def("getD1", &Background::getD1)
         .def("getD2", &Background::getD2)
-        .def("getD1d", &Background::getD1d);
-        .def("getD2d", &Background::getD2d);
+        .def("getD1d", &Background::getD1d)
+        .def("getD2d", &Background::getD2d)
+        .def("getPec", &Background::getPec)
+        .def("getPecd", &Background::getPecd);
 }
 
 #endif
