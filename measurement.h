@@ -90,7 +90,7 @@ public:
         float A = 1.f / N; 
 
         for (int i = 0; i < universe.nParticles; ++i) {
-            Float x = universe.get_particle_pos(i);
+            Float x = universe.get_particle_pos_standardized(i);
             int idx = x * res;
             if (idx > res - 1) idx = res - 1;
             if (idx < 0) idx = 0;

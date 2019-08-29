@@ -10,9 +10,11 @@ void Universe::sampleParticles() {
     // fill particles according to displacement field 
     Float totalVel = 0;
     for (Long i = 0; i < nParticles; ++i) {
-        Float x = L*(Float(i)+Float(0.5)) / nParticles;
+        Float x = i*Dx;
         //std::cout << x << std::endl;
-        Float disp = initDisplacement.get_field(x);
+        /* random field expects 0..1 grid coords */
+        Float disp = initDisplacement.get_field(x/L);
+        x -= L/2;
         //std::cout << disp << " "; 
         // something like \dot(H) needed here
         Float dh = 1;
@@ -86,7 +88,7 @@ Float Universe::collision_time(Long idLeft) {
     assert( std::fabs(tau0 - particles[idLeft+1].t) < 0.00000000001 );
     Float Deltad0 = particles[idLeft+1].v - particles[idLeft].v;
     Float Delta0 = particles[idLeft+1].x - particles[idLeft].x;
-    assert( Delta0 > -0.00001 );
+    assert( Delta0 > -0.0000001 );
 
     //Float a0 = bg.getScaleFactor(tau0);
     Float D10 = bg.getD1(tau0);
@@ -195,7 +197,10 @@ void Universe::update_collision() {
     //assert(std::fabs(particles[id].x - particles[id+1].x) < 0.00000001);
 
     // swap colliding particle positions in sorted particle list - that's in their future 
-   
+  
+    Float meanpos =  (particles[id].x + particles[id+1].x)*Float(0.5);
+    particles[id].x = particles[id+1].x = meanpos;
+        
     std::swap(particles[id], particles[id+1]);
 
 
@@ -203,6 +208,13 @@ void Universe::update_collision() {
     // We know there cannot have been another collision by time t!
     if (id + 1 < nParticles-1) {
         update_particle(id + 2, t);
+        if (particles[id+2].x <= meanpos) {
+            std::cout.precision(18);
+            std::cout << "oops. " << id + 2 << " is at " << particles[id+2].x << " and meanpos is " << meanpos << std::endl;
+            particles[id+2].x = meanpos + 0.00000001;
+            std::cout << "now " << id + 2 << " is at " << particles[id+2].x << std::endl;
+        }
+        assert(particles[id+2].x > meanpos);
         // the particles particles 
         //    (id) <- collided and swapped -> (id+1)   (id+2)
         // are now at the same time t, 
@@ -226,6 +238,13 @@ void Universe::update_collision() {
     if (id > 0) {
         // bring id-1 to time t as well
         update_particle(id-1, t);
+        if (particles[id-1].x >= meanpos) {
+            std::cout.precision(18);
+            std::cout << "oops. " << id - 1 << " is at " << particles[id-1].x << " and meanpos is " << meanpos << std::endl;
+            particles[id-1].x = meanpos - 0.00000001;
+            std::cout << "now " << id - 1 << " is at " << particles[id-1].x << std::endl;
+        }
+        assert(particles[id-1].x < meanpos);
         // old collision invalid, remove
         collisions.erase(particles[id-1].task);
         // id-1 and id are at time t, can use: 

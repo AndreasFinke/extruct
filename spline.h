@@ -55,11 +55,11 @@ public:
          * We need interpolation of second derivative of y, 
          * but we can get it from a first spline derivative interpolating the first derivative of y by spline */
 
-        //Float Dyinv = 1/Dy(yl, Dyl, yr, Dyr, xl, dx, x);
-        Float Dyinv = 1/y(Dyl, DDyl, Dyr, DDyr, xl, dx, x);
+        Float Dyinv = 1/Dy(yl, Dyl, yr, Dyr, xl, dx, x);
+        //Float Dyinv = 1/y(Dyl, DDyl, Dyr, DDyr, xl, dx, x);
         Float foo = y(yl, Dyl, yr, Dyr, xl, dx, x)*Dyinv;
-        //Float foo2 = foo*Dyinv*DDy(yl, Dyl, yr, Dyr, xl, dx, x);
-        Float foo2 = foo*Dyinv*Dy(Dyl, DDyl, Dyr, DDyr, xl, dx, x);
+        Float foo2 = foo*Dyinv*DDy(yl, Dyl, yr, Dyr, xl, dx, x);
+        //Float foo2 = foo*Dyinv*Dy(Dyl, DDyl, Dyr, DDyr, xl, dx, x);
         return x - foo*(1 + 0.5*foo2*(1+foo2));
     }
 };

@@ -36,6 +36,7 @@ public:
         sampleParticles();
     }
 
+    Float get_particle_pos_standardized(Long i) const  { return particles[i].x/L + 0.5; }
     Float get_particle_pos(Long i) const  { return particles[i].x; }
     Float get_particle_vel(Long i) const  { return particles[i].v; }
     Float get_particle_time(Long i) const { return particles[i].t; }
