@@ -76,7 +76,10 @@ private:
     void update_particle_task(Long i) {
         //Float collTime = particles[i].t + collision_time(i);
         Float collTime = collision_time(i);
-        particles[i].task = collisions.insert(RightCollision(i, collTime));
+        if (i >= 0)
+            particles[i].task = collisions.insert(RightCollision(i, collTime));
+        else 
+            leftBoundaryTask = collisions.insert(RightCollision(i, collTime));
     }
 
     Float latestTime = 0;
@@ -120,6 +123,7 @@ private:
     using ParticleList = std::vector<Particle>;
 
     ParticleList particles; 
+    CollisionTasks::iterator leftBoundaryTask;
 
     void sampleParticles(); 
 
