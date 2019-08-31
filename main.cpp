@@ -14,7 +14,15 @@
 #include "multiverse.h"
 #include "universe.h"
 #include "background.h"
-
+//
+// 8000 particles debug in notebook
+// why do particles go out of the box. fix! still issues? with less interpolation points?
+// connect points in phase space; find density. 
+// number of collision observable. 
+// power spectra as planned 
+// replace ints by Longs
+// do warnings
+// coments as /* */ 
 
 struct Entry {
     Entry(Long idx, Float t) : t(t), idx(idx) {} 
@@ -56,10 +64,10 @@ int main() {
     std::cout <<  "Final tau = " << bg.getFinalTau() << std::endl;
     Multiverse mv;
     PowerLaw * pl = new PowerLaw();
-    pl->A = 0.0004;
+    pl->A = 0.004;
 
     for (int i = 0; i < 1; ++i) {
-        mv.bang(2000, bg, pl, 1);
+        mv.bang(1000, bg, pl, 1);
     }
 
     STOP_TIMER
@@ -131,6 +139,7 @@ PYBIND11_MODULE(extruct, m) {
         .def("getD1d", &Background::getD1d)
         .def("getD2d", &Background::getD2d)
         .def("getPec", &Background::getPec)
+        .def("getAOfZ", &Background::getAOfZ)
         .def("getPecd", &Background::getPecd);
 }
 

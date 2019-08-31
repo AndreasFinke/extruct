@@ -39,7 +39,7 @@ public:
     virtual ~PowerLaw() {}
     virtual Float eval(Float k) const { 
         //return A/(0.1*k+1); 
-        return A*k/(100+0*k*k*k*k);
+        return A*k*k/(100+0*k*k*k*k);
     }
 };
 

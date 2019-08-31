@@ -27,7 +27,7 @@ public:
         if (nCurr == 0)
             nMax = N;
         if (++nCurr > nMax)  { 
-            std::cout << "Resetted measurements after more than the requested " << nMax << " calls. Average begins afresh." << std::endl; 
+            //std::cout << "Resetting measurements after more than the requested " << nMax << " calls. Average will begin afresh." << std::endl; 
             nCurr = 1; 
             nMax = N;
             reset();
@@ -63,7 +63,6 @@ protected:
 };
 
 class DensityObs : public Measurement {
-
 
 public:
 
@@ -147,7 +146,7 @@ public:
         for (int i = 0; i < res; ++i)
             datap[res+i] = minV + float(i)/(res-1)*(maxV-minV);
         for (int i = 0; i < universe.nParticles; ++i) {
-            Float x = universe.get_particle_pos(i);
+            Float x = universe.get_particle_pos_standardized(i);
             Float v = universe.get_particle_vel(i);
             int idx = x * res;
             int idx_v = (v-minV)/(maxV-minV) * res;

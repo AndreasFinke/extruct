@@ -26,20 +26,20 @@ public:
     int nUniverses() { return universes.size(); }
 
     
-    void evolve(int universeID, Float t) {
+    void evolve(int universeID, Float z) {
 
-        universes[universeID].evolve(t);
+        universes[universeID].evolve(z);
 
     }
 
-    void evolveAll(Float t) {
+    void evolveAll(Float z) {
         tbb::parallel_for(
             tbb::blocked_range<size_t>(0, universes.size(), 1),
                 [&](tbb::blocked_range<size_t> range) {
                     for (size_t i = range.begin(); i < range.end(); ++i) {
                     //for (int i = 0; i < universes.size(); ++i) {
-                        std::cout << "evolving universe " << i << " until t=" << t << std::endl;
-                        universes[i].evolve(t);
+                        std::cout << "evolving universe " << i << " until z = " << z << std::endl;
+                        universes[i].evolve(z);
                         nCollisions += universes[i].nCollisions;
                         std::cout << "... done after " << universes[i].nCollisions << " collisions." << std::endl; 
                         universes[i].nCollisions = 0;

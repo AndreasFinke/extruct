@@ -16,8 +16,10 @@ void Universe::sampleParticles() {
         Float disp = initDisplacement.get_field(x/L);
         x -= L/2;
         //std::cout << disp << " "; 
-        // something like \dot(H) needed here
-        Float dh = 1;
+        //
+        /* if displ = D1*A, vel is D2d*A = D1d/D1*displ */
+        /* but for now my D1 is 0 initially... just use H instead of D1d/D1 - which is D2! */
+        Float dh = bg.D2[0]*bg.h;
         Float vel  = disp*dh;
 
         if (x+disp < -L/2) 

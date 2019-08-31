@@ -52,7 +52,7 @@ private:
     Float taufin = 0;
     Float dtau = 1;
 
-    static constexpr int NTABLE = 512;
+    static constexpr int NTABLE = 4096;
 
     Float a[NTABLE];
     Float D1[NTABLE];
@@ -91,6 +91,24 @@ public:
 
         return Spline::y(a[idx], a[idx]*a[idx]*a[idx]*E(a[idx])*h, a[idx+1], a[idx+1]*a[idx+1]*a[idx+1]*E(a[idx+1])*h, taul, dtau, tau);
     }
+
+    Float getTauOfZ(Float z) {
+        int idxR = 1;
+        for (; a[idxR] < 1/(1+z); ++idxR) {
+            if (idxR == NTABLE)
+                return taufin;
+        }
+        int idxL = idxR - 1;
+
+        Float yL = a[idxL];
+        Float yR = a[idxR];
+        Float DyL = a[idxL]*a[idxL]*a[idxL]*E(a[idxL])*h;
+        Float DyR = a[idxR]*a[idxR]*a[idxR]*E(a[idxR])*h;
+
+        return Spline::find_zero(1/(1+z)-yL, -DyL, 1/(1+z)-yR, -DyR, idxL*dtau, dtau);
+    }
+
+    Float getAOfZ(Float z) { return getScaleFactor(getTauOfZ(z)); }
 
     Float getPhysTime(Float tau) {
         int idx;

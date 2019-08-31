@@ -17,7 +17,7 @@ class Universe {
 
 public:
 
-    Universe(const Background& bg, PowerSpectrum* ps, Float L, const Long seed, Long nParticles) : L(L), pcg(0, seed), initDisplacement(512), nParticles(nParticles), bg(bg), Dx(L/(nParticles-1)) {
+    Universe(const Background& bg, PowerSpectrum* ps, Float L, const Long seed, Long nParticles) : L(L), pcg(0, seed), initDisplacement(1024), nParticles(nParticles), bg(bg), Dx(L/(nParticles-1)) {
         std::cout << "Universe ctor. " << bg.isIntegrated << std::endl; 
         draw(ps);
     }
@@ -53,7 +53,9 @@ public:
             update_particle(i, most_recent_particle_time());
     }
 
-    void evolve(Float t) {
+    void evolve(Float z) {
+
+        Float t = bg.getTauOfZ(z);
         while (next_collision_time() < t)
             update_collision();
 

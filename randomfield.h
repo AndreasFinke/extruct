@@ -33,7 +33,7 @@ public:
             mode.real(std::sin(phase)); 
             mode.imag(std::cos(phase)); 
             Float k = 2*pi*i;
-            modes[i] = mode*spec->eval(k);
+            modes[i] = mode*spec->eval(k) / (1+k*k*k*k*1e-4);
         }
         modes[0] *= 0;
 
@@ -68,8 +68,8 @@ public:
     }
 
     Float get_field(Float x) {
-        Long idx = x*nGrid;
-        assert(idx < nGrid && idx >= 0);
+        assert(x >= 0);
+        Long idx = std::min(Long(x*nGrid), nGrid);
         return field[idx];
     }
 
