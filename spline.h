@@ -88,27 +88,41 @@ public:
 
         Float x = xl;
 
-        if (DDyl <= 0 && Dyl > 0)  {
+        if ((DDyl <= 0) && (Dyl > 0))  {
+            std::cout << "other branch " << std::endl;
             assert(DDyl != 0);
             Float DDylinv = 1/DDyl;
             Float foo = Dyl * DDylinv; 
             Float D = foo*foo - 2*yl*DDylinv;
-            assert(D>=0); 
-            x -= foo + sqrt(D);
+                std::cout << "First case" << std::endl;
+                std::cout << "D = " << D << " is negative." << std::endl;
+                std::cout << "yl " << yl << " Dyl " << Dyl << " DDyl " << DDyl << " yr " << yr << " Dyr " << Dyr << " DDyr " << DDyr << " xl " << xl << " dx " << dx << std::endl << std::endl; 
+            if (D >= 0)
+                x -= foo + sqrt(D);
+            else {
+                std::cout << "First case" << std::endl;
+                std::cout << "D = " << D << " is negative." << std::endl;
+                std::cout << "yl " << yl << " Dyl " << Dyl << " DDyl " << DDyl << " yr " << yr << " Dyr " << Dyr << " DDyr " << DDyr << " xl " << xl << " dx " << dx << std::endl << std::endl; 
+            }
         }
         else {
 
             Float Dylinv = 1/Dyl;
             Float D = 1 - 2*yl*DDyl*Dylinv*Dylinv;
 
-            assert(D>=0);
 
+                //std::cout << "Second case" << std::endl;
+                //std::cout << "D = " << D << " is negative." << std::endl;
+                //std::cout << "yl " << yl << " Dyl " << Dyl << " DDyl " << DDyl << " yr " << yr << " Dyr " << Dyr << " DDyr " << DDyr << " xl " << xl << " dx " << dx << std::endl << std::endl; 
             if (D >= 0)
                 x -= - 2*yl*Dylinv/(1 + std::sqrt(D) );
             else {
+                std::cout << "Second case" << std::endl;
                 std::cout << "D = " << D << " is negative." << std::endl;
                 std::cout << "yl " << yl << " Dyl " << Dyl << " DDyl " << DDyl << " yr " << yr << " Dyr " << Dyr << " DDyr " << DDyr << " xl " << xl << " dx " << dx << std::endl << std::endl; 
             }
+
+            assert(D>=0);
         }
 
 
@@ -122,12 +136,25 @@ public:
          * We need interpolation of second derivative of y, 
          * but we can get it from a first spline derivative interpolating the first derivative of y by spline */
 
+
         Float Dyinv = 1/Dy(yl, Dyl, yr, Dyr, xl, dx, x);
         //Float Dyinv = 1/y(Dyl, DDyl, Dyr, DDyr, xl, dx, x);
         Float foo = y(yl, Dyl, yr, Dyr, xl, dx, x)*Dyinv;
         Float foo2 = foo*Dyinv*DDy(yl, Dyl, yr, Dyr, xl, dx, x);
         //Float foo2 = foo*Dyinv*Dy(Dyl, DDyl, Dyr, DDyr, xl, dx, x);
-        return x - foo*(1 + 0.5*foo2*(1+foo2));
+        //return x - foo*(1 + 0.5*foo2*(1+foo2));
+        x -= foo*(1 + 0.5*foo2*(1+foo2));
+
+        for (int k = 0; k < 1; ++k) { 
+            Float Dyinv = 1/Dy(yl, Dyl, yr, Dyr, xl, dx, x);
+            //Float Dyinv = 1/y(Dyl, DDyl, Dyr, DDyr, xl, dx, x);
+            Float foo = y(yl, Dyl, yr, Dyr, xl, dx, x)*Dyinv;
+            x -= foo;
+        }
+
+        return x;
+
+
     }
 
     static Float find_zero(Float yl, Float Dyl, Float yr, Float Dyr, Float xl, Float dx) {

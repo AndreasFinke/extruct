@@ -17,8 +17,8 @@ public:
 
     Multiverse() {}
 
-    int bang(Long nParticles, const Background& bg, PowerSpectrum* pspec, Float L) {
-        universes.push_back(Universe(bg, pspec, L, universes.size(), nParticles));
+    int bang(Long nParticles, const Background& bg, PowerSpectrum* pspec, Float L, int boundaryCondition) {
+        universes.push_back(Universe(bg, pspec, L, universes.size(), nParticles, boundaryCondition));
         return universes.size()-1;
 
     }
@@ -28,6 +28,7 @@ public:
     
     void evolve(int universeID, Float z) {
 
+        universes[universeID].diagnose();
         universes[universeID].evolve(z);
 
     }
@@ -39,7 +40,7 @@ public:
                     for (size_t i = range.begin(); i < range.end(); ++i) {
                     //for (int i = 0; i < universes.size(); ++i) {
                         std::cout << "evolving universe " << i << " until z = " << z << std::endl;
-                        universes[i].evolve(z);
+                        evolve(i, z);
                         nCollisions += universes[i].nCollisions;
                         std::cout << "... done after " << universes[i].nCollisions << " collisions." << std::endl; 
                         universes[i].nCollisions = 0;

@@ -15,8 +15,6 @@
 #include "universe.h"
 #include "background.h"
 //
-// 8000 particles debug in notebook
-// why do particles go out of the box. fix! still issues? with less interpolation points?
 // connect points in phase space; find density. 
 // number of collision observable. 
 // power spectra as planned 
@@ -24,13 +22,6 @@
 // do warnings
 // coments as /* */ 
 
-struct Entry {
-    Entry(Long idx, Float t) : t(t), idx(idx) {} 
-    Float t;
-    Long idx;
-    bool operator<(const Entry& rhs) const {return t < rhs.t;}
-    friend std::ostream& operator<<(std::ostream& out, const Entry& obj);
-};
 
 std::ostream& operator<<(std::ostream& out, const Entry& obj)
 {
@@ -56,6 +47,8 @@ void print_contents(const C<T, A>& v, const char * const separator = ", ")
 
 int main() {
 
+    //std::cout << int(-0.3) << " " << std::floor(-0.3) << " " << 
+        //(-1)%7 << std::endl;
     START_NAMED_TIMER("Big Bang")
 
     Background bg;
@@ -64,19 +57,32 @@ int main() {
     std::cout <<  "Final tau = " << bg.getFinalTau() << std::endl;
     Multiverse mv;
     PowerLaw * pl = new PowerLaw();
-    pl->A = 0.004;
+    pl->A = 0.00004;
+
+    DensityObs2 * d = new DensityObs2(200);
 
     for (int i = 0; i < 1; ++i) {
-        mv.bang(1000, bg, pl, 1);
+        mv.bang(100, bg, pl, 1, 1);
     }
 
     STOP_TIMER
 
     START_NAMED_TIMER("Evolution")
 
-    mv.evolveAll(bg.getFinalTau());
+    mv.evolveAll(0);
+
+    STOP_TIMER
+
+    START_NAMED_TIMER("Density2")
+    mv.measureAll(d);
+    auto den = d->getResult();
+
    
     STOP_TIMER
+
+
+    delete d;
+    delete pl;
 }
 
     //Measurement * ps = new PowerSpectrumObs(0, 10, 1);
@@ -124,10 +130,16 @@ PYBIND11_MODULE(extruct, m) {
         .def("measure", &Measurement::measure);
     py::class_<DensityObs, Measurement>(m, "DensityObs")
         .def(py::init<int>());
+    py::class_<DensityObs2, Measurement>(m, "DensityObs2")
+        .def(py::init<int>());
+    py::class_<CollisionObs, Measurement>(m, "CollisionObs")
+        .def(py::init<int>());
     py::class_<PhaseSpaceDensityObs, Measurement>(m, "PhaseSpaceDensityObs")
         .def(py::init<int>());
     py::class_<PowerSpectrumObs, Measurement>(m, "PowerSpectrumObs")
         .def(py::init<int, int, int>());
+    py::class_<CorrelationFunctionObs, Measurement>(m, "CorrelationFunctionObs")
+        .def(py::init<int, int>());
     py::class_<Background>(m, "Background")
         .def(py::init<>())
         .def(py::init<Float, Float, Float, Float, Float>())

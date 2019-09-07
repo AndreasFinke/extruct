@@ -19,11 +19,26 @@ namespace py = pybind11;
 static constexpr auto pi = 3.141592653589793238462643383279502884197169399375105820974944592307816;
 using namespace std::complex_literals;
 
+template <typename T> int sgn(T val) {
+    return (T(0) < val) - (val < T(0));
+}
+
+struct Entry {
+    Entry(Long idx, Float t) : t(t), idx(idx) {} 
+    Float t;
+    Long idx;
+    bool operator<(const Entry& rhs) const {return t < rhs.t;}
+    friend std::ostream& operator<<(std::ostream& out, const Entry& obj);
+};
+
 template<class CollisionTask> 
 struct TaskParticle {
-    TaskParticle() : x(0), v(0), t(0) {} 
-    TaskParticle(Float x, Float v) : x(x), v(v) {}
+    TaskParticle() : x(0), v(0), t(0), nCollisions(0), index(0), sheet(0) {} 
+    TaskParticle(Float x, Float v, int index, short sheet) : x(x), v(v), nCollisions(0), index(index), sheet(sheet){}
     Float x, v, t;
+    Long nCollisions;
+    int index;
+    short sheet;
     CollisionTask task;
 };
 

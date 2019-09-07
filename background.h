@@ -52,7 +52,10 @@ private:
     Float taufin = 0;
     Float dtau = 1;
 
-    static constexpr int NTABLE = 4096;
+    static constexpr int NTABLE = 2048*8;
+    
+    // the actual integration proceeds in finer (regular) steps - for this we require some temporary variables 
+    static constexpr Float dtau_fine = 0.00001;
 
     Float a[NTABLE];
     Float D1[NTABLE];
@@ -199,8 +202,6 @@ public:
 
         isIntegrated = true;
 
-        // the actual integration proceeds in finer (regular) steps - for this we require some temporary variables 
-        const Float dtau_fine = 0.0001;
 
         std::vector<Float> afine, D1fine, Pecfine, S2, tfine;
         afine.push_back(1/(zin+1));

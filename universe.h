@@ -9,6 +9,7 @@
 #include <vector>
 #include <algorithm>
 #include <memory>
+#include <string>
 
 
 class Universe { 
@@ -16,85 +17,6 @@ class Universe {
     friend class Multiverse;
 
 public:
-
-    Universe(const Background& bg, PowerSpectrum* ps, Float L, const Long seed, Long nParticles) : L(L), pcg(0, seed), initDisplacement(1024), nParticles(nParticles), bg(bg), Dx(L/(nParticles-1)) {
-        std::cout << "Universe ctor. " << bg.isIntegrated << std::endl; 
-        draw(ps);
-    }
-
-    // force move construction, not only for performance (e.g. because of particles std::vector):
-    // we cannot copy the collisions std::multiset tree and expect the iterator on it in Particle to still be valid
-    // this crashes the evolution after Multiverse::bang() ! 
-    Universe& operator=(const Universe&) = delete;
-    Universe(const Universe&) = delete;
-    Universe(Universe&&) = default;
-
-    ~Universe() {};
-
-    void draw(PowerSpectrum* ps) {
-        initDisplacement.generate(pcg, ps);
-        sampleParticles();
-    }
-
-    Float get_particle_pos_standardized(Long i) const  { return particles[i].x/L + 0.5; }
-    Float get_particle_pos(Long i) const  { return particles[i].x; }
-    Float get_particle_vel(Long i) const  { return particles[i].v; }
-    Float get_particle_time(Long i) const { return particles[i].t; }
-
-    const Long nParticles; 
-    const Float L; 
-    const Float Dx;
-
-
-    void update_collision();
-
-    void synchronize() {
-        for (int i = 0; i < nParticles; ++i) 
-            update_particle(i, most_recent_particle_time());
-    }
-
-    void evolve(Float z) {
-
-        Float t = bg.getTauOfZ(z);
-        while (next_collision_time() < t)
-            update_collision();
-
-        latestTime = t;
-        synchronize();
-    }
-
-    // returns time of last collision or current evolved time if newer 
-    Float most_recent_particle_time() { return latestTime; }
-
-    Float next_collision_time() {return (collisions.begin())->collTime; }
-
-private:
-
-    long nCollisions = 0;
-    // update particle to time t assuming no collision
-    void update_particle(Long i, Float t);
-
-
-    void update_particle_task(Long i) {
-        //Float collTime = particles[i].t + collision_time(i);
-        Float collTime = collision_time(i);
-        if (i >= 0)
-            particles[i].task = collisions.insert(RightCollision(i, collTime));
-        else 
-            leftBoundaryTask = collisions.insert(RightCollision(i, collTime));
-    }
-
-    Float latestTime = 0;
-    // compute right-collision time of partile idLeft
-    Float collision_time(Long idLeft);
-    //SomeArray<Particle> 
-    // particle list must be sorted by position
-    //
-
-    Background bg; 
-
-    pcg32 pcg;
-
 
     struct RightCollision {
         //RightCollision(RightCollision&&) = default;
@@ -126,6 +48,117 @@ private:
 
     ParticleList particles; 
     CollisionTasks::iterator leftBoundaryTask;
+    Universe(const Background& bg, PowerSpectrum* ps, Float L, const Long seed, Long nParticles, int boundaryCondition) : L(L), pcg(0, seed), initDisplacement(1024), nParticles(nParticles), bg(bg), Dx(L/(nParticles-1)), boundary(boundaryCondition) {
+        std::cout << "Universe ctor. " << bg.isIntegrated << std::endl; 
+        draw(ps);
+    }
+
+    // force move construction, not only for performance (e.g. because of particles std::vector):
+    // we cannot copy the collisions std::multiset tree and expect the iterator on it in Particle to still be valid
+    // this crashes the evolution after Multiverse::bang() ! 
+    Universe& operator=(const Universe&) = delete;
+    Universe(const Universe&) = delete;
+    Universe(Universe&&) = default;
+
+    ~Universe() {};
+
+    void draw(PowerSpectrum* ps) {
+        initDisplacement.generate(pcg, ps);
+        sampleParticles();
+    }
+
+    Float get_particle_pos_standardized(Long i) const  { return (particles[i].x + Dx/2 + L/2)/(L+Dx); }
+    Float get_particle_pos(Long i) const  { return particles[i].x + particles[i].sheet*L; }
+    Float get_particle_vel(Long i) const  { return particles[i].v; }
+    Float get_particle_time(Long i) const { return particles[i].t; }
+    Long get_particle_collision_number(Long i) const { return particles[i].nCollisions; }
+    ParticleList get_particles() const {return particles;}
+
+    const Long nParticles; 
+    const Float L; 
+    const Float Dx;
+
+    static constexpr int PERIODIC = 1;
+    static constexpr int REFLECTIVE = 2;
+    int boundary;
+    int rotation = 0;
+
+    void update_collision();
+
+    void synchronize() {
+        for (int i = 0; i < nParticles; ++i) 
+            update_particle(i, most_recent_particle_time());
+    }
+
+    void evolve(Float z) {
+
+        Float t = bg.getTauOfZ(z);
+        while (next_collision_time() < t)
+            update_collision();
+
+        latestTime = t;
+        synchronize();
+    }
+
+    void diagnose(std::string m = "") {
+        //for (Long i = 0; i < nParticles-1; ++i) { 
+            //if (particles[i+1].x < particles[i].x && std::fabs(particles[i+1].t - particles[i].t) < 1e-15){
+        //std::cout << "Diagnose with L = " << L << std::endl;
+        //std::cout << m << std::endl;
+                //std::cout << "Particle (" << i << ", " <<  i + 1 << ") are in the wrong order." << std::endl;
+                //std::cout << "Coords are " << particles[i].x << ", " << particles[i+1].x << std::endl;
+                //assert(false);
+            //}
+            //if (particles[i].x < -L/2-Dx/2  || particles[i].x > L/2 + Dx/2 ) { 
+        //std::cout << "Diagnose with L = " << L << std::endl;
+        //std::cout << m << std::endl;
+                //std::cout << "Particle " << i << " is out of the box at " << particles[i].x << std::endl;
+                //assert(false);
+            //}
+        //}
+    }
+
+    // returns time of last collision or current evolved time if newer 
+    Float most_recent_particle_time() { return latestTime; }
+
+    Float next_collision_time() {return (collisions.begin())->collTime; }
+
+private:
+
+    long nCollisions = 0;
+    // update particle to time t assuming no collision
+    void update_particle(Long i, Float t);
+
+
+    void update_particle_task(Long i) {
+        //Float collTime = particles[i].t + collision_time(i);
+        //std::cout << "attempting computation of coll time for " << i << std::endl;
+        Float collTime = collision_time(i);
+
+        //std::cout << "Coll time just computed for " << i <<" is " << collTime << std::endl;
+        if (i >= 0) { 
+            particles[i].task = collisions.insert(RightCollision(i/*-rotation*/, collTime));
+        
+            
+            if (collTime <= particles[i].t) 
+                std::cout << "Bad time order at " << i << " with " << (collTime-particles[i].t)/collTime << std::endl; 
+            
+            assert(collTime > particles[i].t);
+        }
+        else 
+            leftBoundaryTask = collisions.insert(RightCollision(i/*-rotation*/, collTime));
+    }
+
+    Float latestTime = 0;
+    // compute right-collision time of partile idLeft
+    Float collision_time(Long idLeft);
+    //SomeArray<Particle> 
+    // particle list must be sorted by position
+    //
+
+    Background bg; 
+
+    pcg32 pcg;
 
     void sampleParticles(); 
 
