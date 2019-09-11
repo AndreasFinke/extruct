@@ -34,11 +34,11 @@ public:
     }
 
     void evolveAll(Float z) {
-        //tbb::parallel_for(
-            //tbb::blocked_range<size_t>(0, universes.size(), 1),
-                //[&](tbb::blocked_range<size_t> range) {
-                    //for (size_t i = range.begin(); i < range.end(); ++i) {
-                    for (int i = 0; i < universes.size(); ++i) {
+        tbb::parallel_for(
+            tbb::blocked_range<size_t>(0, universes.size(), 1),
+                [&](tbb::blocked_range<size_t> range) {
+                    for (size_t i = range.begin(); i < range.end(); ++i) {
+                    //for (int i = 0; i < universes.size(); ++i) {
                         std::cout << "evolving universe " << i << " until z = " << z << std::endl;
                         evolve(i, z);
                         nCollisions += universes[i].nCollisions;
@@ -46,8 +46,8 @@ public:
                         universes[i].nCollisions = 0;
                     }
                     std::cout << "Total number of collisions in this multiverse: " << nCollisions << std::endl; 
-                //}
-        //);
+                }
+        );
 
     }
 

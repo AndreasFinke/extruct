@@ -151,6 +151,8 @@ private:
 
 class DensityObs2 : public Measurement {
 
+    friend class PowerSpectrumObs;
+
 public:
 
     DensityObs2(int res) : Measurement(4*2*res), res(res) {
@@ -175,8 +177,6 @@ public:
 
         float A = 1.f / N; 
 
-        auto ps = universe.get_particles();
-
         /* will hold indices of particles sorted by their id */
         std::vector<Long> sortedById(universe.nParticles);
         /* fill with 0, 1, ... nParticles-1 */  
@@ -191,17 +191,12 @@ public:
 
         for (int i = 0; i < universe.nParticles; ++i) {
 
-            if (universe.boundary == universe.REFLECTIVE) {
-
-            }
-            else if (universe.boundary == universe.PERIODIC) {
-            
-            }
-
             Float xL = universe.get_real_particle_pos_standardized(sortedById[i]);
             /* wrap around at the end */
             Float xR = ( i+1 < universe.nParticles ) ? universe.get_real_particle_pos_standardized(sortedById[i+1])
                 : (universe.get_real_particle_pos_standardized(sortedById[0]) + 1);
+            xL *= zoom;
+            xR *= zoom;
             //Float xL = ps[i].x/universe.L + 0.5 + ps[i].sheet;
             //Float xR = ps[(i+1)%nParticles].x/universe.L + 0.5 + ps[i].sheet;
 
@@ -271,8 +266,11 @@ public:
         }
 
     }
+
+    void set_zoom(float z) { zoom = z; }
 private:
 
+    float zoom = 1;
     int res;
     float* datap; 
 
@@ -343,6 +341,7 @@ using namespace std::complex_literals;
 
 class PowerSpectrumObs : public Measurement {
 
+    friend class CorrelationFunctionObs; 
 
 public:
 
@@ -353,7 +352,7 @@ public:
         datap = (float *) data;
         reset();
 
-        densobs = new DensityObs2(res);
+        densobs = new DensityObs2(2*res);
     }
     
     virtual void reset() { 
@@ -363,11 +362,10 @@ public:
         }
     }
 
-    float * getData() { 
-        return datap;
-    }
 
-    virtual ~PowerSpectrumObs() {} 
+    virtual ~PowerSpectrumObs() {
+        delete densobs;
+    } 
 
     virtual void measure(const Universe& universe, int N) {
         Measurement::measure(universe, N);
@@ -385,31 +383,77 @@ public:
                     rc += std::cos(datap[i] * universe.get_particle_pos_standardized(j));
                 }
                 //datap[res+i] += std::abs(c);
-                datap[res+i] += A*std::sqrt(rs*rs+rc*rc);
+                datap[res+i] += A*(rs*rs+rc*rc);
             }
         }
 
         if (method == 1) {
+            /* will hold indices of particles sorted by their id */
+            std::vector<Long> sortedById(universe.nParticles);
+            /* fill with 0, 1, ... nParticles-1 */  
+            std::iota(std::begin(sortedById), std::end(sortedById), 0);
+
+            //std::sort(ps.begin(), ps.end(), [](auto& lhs, auto& rhs) { return lhs.index < rhs.index;} );
+            std::sort(sortedById.begin(), sortedById.end(), 
+                    [&](const Long& a, const Long& b) { 
+                        return universe.get_particle_id(a) < universe.get_particle_id(b);
+                    }  
+            );
+
             for (int i = 0; i < res; ++i) {
                 //std::complex<float> c = 0;
                 double rs = 0, rc = 0;
-                for (int j = 0; j < universe.nParticles-1; ++j) {
+                for (int j = 0; j < universe.nParticles; ++j) {
                     // FT of line segment
                     // int_a^b dx exp(i x k_j)  = 1/ik (exp(iak) - exp(ibk)) = exp(i (a+b)/2 k)/ik (exp(i (a-b)k/2) - exp(-i(a-b)k/2)) 
                     // but for density, there is another 1/(b-a) 
                     // so  -exp(i(a+b)k/2) sinc((b-a)k/2)) = (-cos((a+b)k/2) sinc((b-a)k/2), -sin((a+b)k/2) sinc((b-a)k/2))
-                    Float a = universe.get_particle_pos_standardized(j); 
-                    Float b = universe.get_particle_pos_standardized(j+1);
-                    if (a > b)
-                        std::swap(a,b);
-                    Float sincarg = (b-a)*datap[i]*0.5;
-                    Float exparg = (b+a)*datap[i]*0.5;
+                    Float xL = universe.get_real_particle_pos_standardized(sortedById[j]);
+                    //xL = universe.get_particle_pos_standardized(j);
+                    /* wrap around at the end */
+                    Float xR = ( j+1 < universe.nParticles ) ? universe.get_real_particle_pos_standardized(sortedById[j+1])
+                        : (universe.get_real_particle_pos_standardized(sortedById[0]) + 1);
+                    //xR = universe.get_particle_pos_standardized()
+                    if (xL > xR)
+                        std::swap(xL,xR);
+                    Float sincarg = (xR-xL)*datap[i]*0.5;
+                    Float exparg = (xR+xL)*datap[i]*0.5;
                     rs += -std::sin(exparg)*std::sin(sincarg)/sincarg; 
                     rc += -std::cos(exparg)*std::sin(sincarg)/sincarg; 
                 }
                 //datap[res+i] += std::abs(c);
-                datap[res+i] += A*std::sqrt(rs*rs+rc*rc);
+                datap[res+i] += A*(rs*rs+rc*rc);
             }
+        }
+
+        if (method == 2) {
+            /* don't pass N: reset measurment after each and average later */
+            densobs->set_zoom(skip);
+            densobs->measure(universe, 1); 
+            fftw_complex *out;
+            double *in;
+            fftw_plan p;
+            in = (double*) fftw_malloc(sizeof(double) * 2 * res);
+            
+            for (int i = 0; i < 2*res; ++i) {
+                //in[i] = (densobs->getData())[i];
+                in[i] = densobs->datap[2*res+i];
+            }
+
+
+            out = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * 2 * res);
+
+        //p = fftw_plan_dft_1d(nGrid, reinterpret_cast<fftw_complex*>(&modes[0]), reinterpret_cast<fftw_complex*>(&field[0]), FFTW_BACKWARD, FFTW_ESTIMATE);
+            p = fftw_plan_dft_r2c_1d(2 * res, in, out, FFTW_ESTIMATE);
+            fftw_execute(p); 
+
+            for (int i = 0; i < res; ++i) {
+                datap[i+res] += A*(out[i][0]*out[i][0] + out[i][1]*out[i][1]);
+            }
+
+            fftw_destroy_plan(p);
+            fftw_free(in); 
+            fftw_free(out);
         }
 
 
@@ -457,7 +501,7 @@ public:
 
         psobs->measure(universe, N);
 
-        std::memcpy(datap, psobs->getData(), bytes) ;
+        std::memcpy(datap, psobs->data, bytes) ;
     }
 private:
 
