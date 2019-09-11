@@ -4,6 +4,7 @@
 #include "spline.h"
 #include "main.h"
 #include <utility>
+#include <array>
 
 struct Background {
 
@@ -25,26 +26,39 @@ struct Background {
 
     bool isIntegrated = false;
 
-    Background(const Background& orig) 
-    : Om(orig.Om), h(orig.h), hf(orig.hf), Oc(orig.Oc), zin(orig.zin), zfin(orig.zfin) {
+    //Background(Background&& orig) : Background(orig) {}
 
-        isIntegrated = orig.isIntegrated;
+    //Background& operator=()
+    //Background(const Background& orig) 
+    //: Om(orig.Om), h(orig.h), hf(orig.hf), Oc(orig.Oc), zin(orig.zin), zfin(orig.zfin) {
 
-        if (isIntegrated) {
-            taufin = orig.taufin;
-            dtau = orig.dtau;
-            memcpy(a, orig.a, NTABLE*sizeof(Float));  // copy data
-            memcpy(D1, orig.D1, NTABLE*sizeof(Float));  // copy data
-            memcpy(D2, orig.D2, NTABLE*sizeof(Float));  // copy data
-            memcpy(D1d, orig.D1d, NTABLE*sizeof(Float));  // copy data
-            memcpy(D2d, orig.D2d, NTABLE*sizeof(Float));  // copy data
-            memcpy(Pec, orig.Pec, NTABLE*sizeof(Float));  // copy data
-            memcpy(Pecd, orig.Pecd, NTABLE*sizeof(Float));  // copy data
-            memcpy(t, orig.t, NTABLE*sizeof(Float));  // copy data
-        }
-        else
-            integrate();
-    }
+        //isIntegrated = orig.isIntegrated;
+
+        //if (isIntegrated) {
+
+            //taufin = orig.taufin;
+            //dtau = orig.dtau;
+
+            //a = orig.a;
+            //D1 = orig.D1;
+            //D2 = orig.D2;
+            //D1d = orig.D1d;
+            //D2d = orig.D2d;
+            //Pec = orig.Pec;
+            //Pecd = orig.Pecd;
+            //t = orig.t;
+            ////memcpy(a, orig.a, NTABLE*sizeof(Float));  // copy data
+            ////memcpy(D1, orig.D1, NTABLE*sizeof(Float));  // copy data
+            ////memcpy(D2, orig.D2, NTABLE*sizeof(Float));  // copy data
+            ////memcpy(D1d, orig.D1d, NTABLE*sizeof(Float));  // copy data
+            ////memcpy(D2d, orig.D2d, NTABLE*sizeof(Float));  // copy data
+            ////memcpy(Pec, orig.Pec, NTABLE*sizeof(Float));  // copy data
+            ////memcpy(Pecd, orig.Pecd, NTABLE*sizeof(Float));  // copy data
+            ////memcpy(t, orig.t, NTABLE*sizeof(Float));  // copy data
+        //}
+        ////else
+            ////integrate();
+    //}
 
 
 private:
@@ -57,14 +71,22 @@ private:
     // the actual integration proceeds in finer (regular) steps - for this we require some temporary variables 
     static constexpr Float dtau_fine = 0.00001;
 
-    Float a[NTABLE];
-    Float D1[NTABLE];
-    Float D2[NTABLE];
-    Float D1d[NTABLE];
-    Float D2d[NTABLE];
-    Float Pec[NTABLE];
-    Float Pecd[NTABLE];
-    Float t[NTABLE];
+    std::array<Float, NTABLE> a; 
+    std::array<Float, NTABLE> D1; 
+    std::array<Float, NTABLE> D2; 
+    std::array<Float, NTABLE> D1d; 
+    std::array<Float, NTABLE> D2d; 
+    std::array<Float, NTABLE> Pec; 
+    std::array<Float, NTABLE> Pecd; 
+    std::array<Float, NTABLE> t; 
+    //Float a[NTABLE];
+    //Float D1[NTABLE];
+    //Float D2[NTABLE];
+    //Float D1d[NTABLE];
+    //Float D2d[NTABLE];
+    //Float Pec[NTABLE];
+    //Float Pecd[NTABLE];
+    //Float t[NTABLE];
 
     // this is the Hubble rate (up to a missing factor of H0) given the scale factor, Om, and Oc 
     Float E(Float a) { 

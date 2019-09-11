@@ -143,6 +143,14 @@ Float Universe::collision_time(Long idLeft) {
         assert( std::fabs(tau0 - particles[idLeft+1].t) < 1e-15 );
     }
 
+    if (Delta0 - extraDelta <= -1e-15) {
+        if (idLeft >= -1)
+            std::cout <<"Left x " << particles[idLeft].x << " and sheet " << particles[idLeft].sheet << std::endl;
+        if (idLeft + 1 < nParticles)
+            std::cout << "Right x " << particles[idLeft+1].x << " and sheet " << particles[idLeft +1].sheet <<  std::endl;
+        std::cout << "Delta0 " << Delta0 << " extraDelta " << extraDelta << "Diff " << Delta0 - extraDelta << std::endl;
+        std::cout << "idLeft " << idLeft << " sheet L " << particles[idLeft >= 0 ? idLeft : idLeft + 1].sheet << std::endl;
+    }
     assert(Delta0 - extraDelta > -1e-15);
 
     //if (std::fabs(extraDelta) > L/2 ) { 
@@ -175,19 +183,33 @@ Float Universe::collision_time(Long idLeft) {
     auto distance = [c1, c2, fac, extraDelta, &bg=bg] (int idx) { return c1*bg.D1[idx] + c2*bg.D2[idx] + bg.Pec[idx]*fac - extraDelta; } ; //TODO 
     auto distanced = [c1, c2, fac, &bg=bg] (int idx) { return c1*bg.D1d[idx] + c2*bg.D2d[idx] + bg.Pecd[idx]*fac; } ;
 
-    /* there is at most one zero crossing into the negative in the future. if the function is positive at the end, there is no zero or a zero is in the future after the final time considered. 
+    /* there is at most one zero crossing into the negative in the future in the standard case (fac > 0). if the function is positive at the end, there is no zero or a zero is in the future after the final time considered. 
        we just return the final time plus one plus the particle index here */
-    if (distance(idxLast) > 0)
-        return bg.taufin + 2 + idLeft;
-    
+
     /* else, find sign change in the future */
 
     int idxLeft = std::min(int(tau0/bg.dtau), idxLast-1);
 
     /* add one to be in the future of the start time */
     int idxR = idxLeft + 1;
-    /* walk until sign changed; note it will happen at the latest at idxLast because of the previous if statement*/
-    for (; distance(idxR) > 0; ++idxR);
+
+    if (fac >= 0) {
+        if (distance(idxLast) > 0)
+            return bg.taufin + 2 + idLeft;
+        /* walk until sign changed; note it will happen at the latest at idxLast because of the previous if statement*/
+        for (; distance(idxR) > 0; ++idxR);
+    }
+    else {
+        if (Deltad0 > 0)
+            return bg.taufin + 2 + idLeft;
+        else {
+            for (; distance(idxR) > 0; ++idxR) {
+                if (idxR == idxLast)
+                    return bg.taufin + 2 + idLeft;
+            }
+        }
+    }
+    
     /* the zero is contained in the interval formed with the previous index */ 
     int idxL = idxR - 1;
 
@@ -205,8 +227,11 @@ Float Universe::collision_time(Long idLeft) {
 
     if (!std::isnormal(DDyL) || !std::isnormal(DDyR) ) {
         std::cout << "Anormal second derivatives in collision_time " << idxL << " of " << idxLast <<  std::endl;
-
-        std::cout << bg.getOm() << bg.a[idxL];
+        std::cout << "tau0 " << tau0 << " idxLeft " << idxLeft << " distance(idxLeft+1) " << distance(idxLeft + 1) << std::endl;
+        std::cout << "c1 " << c1 << " c2 " << c2 << " bg.D1 " << bg.D1[idxLeft+1] << " bg.D2d " << bg.D2d[idxLeft+1] << std::endl;
+        std::cout << "D10 " << D10 << " D20 " << D20 << " D1d0 " << D1d0 << " D2d0 " << D2d0 << " Pec0 " << Pec0 << " Pecd0 " << Pecd0 << " fac " << fac << " Delta0 " << Delta0 << " Deltad0 " << Deltad0 << std::endl;
+        std::cout << "idLeft " << idLeft << " x " << particles[idLeft].x << " x2 " << particles[idLeft+1].x << " extraD " << extraDelta << std::endl;
+        std::cout << bg.getOm() << " " <<  bg.a[idxL] << std::endl;
     }
 
     return Spline::find_zero(yL, DyL, DDyL, yR, DyR, DDyR, idxL*bg.dtau, bg.dtau);
@@ -250,13 +275,16 @@ void Universe::update_collision() {
 
     Float t = coll->collTime;
     latestTime = t;
-    //Long id = coll->id + rotation;
+    Long id = coll->id + rotation;
    
-    Long id = coll->id;
+    //Long id = coll->id;
 
-            //for (int i = 0; i < nParticles; ++i) std::cout << " " << particles[i].index<< " " << particles[i].t;
-            //std::cout << std::endl << std::endl;
-     //std::cout << std::endl<<"coll part is " << id << " at " << t << " and there are "<< collisions.size() << " collisions " << std::endl;
+    //for (int i = 0; i < nParticles; ++i) std::cout << " " << particles[i].index<< " " << particles[i].t;
+    //std::cout << std::endl<<"coll part is " << id << " at " << t;
+    //if (id >= 0) 
+        //std::cout << " with index " << particles[id].index << std::endl;
+    //else
+        //std::cout << std::endl;
     
     nCollisions++; 
 
@@ -271,7 +299,7 @@ void Universe::update_collision() {
     if (id == -1) {
         collisions.erase(particles[0].task);
         update_particle(0, t);
-        std::cout << "L After boundary collision first particle is at " << particles[0].x << std::endl;
+        //std::cout << "L After boundary collision first particle is at " << particles[0].x << std::endl;
         //
         if (boundary == REFLECTIVE) { 
             particles[0].x = -L/2 - Dx/2;
@@ -285,7 +313,8 @@ void Universe::update_collision() {
             /* beam particle to the right boundary*/
             particles[0].x = L/2 + Dx/2;
             
-             std::cout << "L After boundary collision first particle is at " << particles[0].x << std::endl;
+             //std::cout << "Now at  " << particles[0].x << std::endl;
+            std::cout << "L";
             /* remember where it came from */ 
             --particles[0].sheet;
 
@@ -297,14 +326,16 @@ void Universe::update_collision() {
             //std::cout << std::endl;
 
             rotation--;
-            for (CollisionTasks::iterator it = collisions.begin(); it != collisions.end(); ++it)
-                const_cast<Long&>((*it).id)--;
+
+            //for (CollisionTasks::iterator it = collisions.begin(); it != collisions.end(); ++it)
+                //const_cast<Long&>((*it).id)--;
 
             //for (CollisionTasks::iterator it = collisions.begin(); it != collisions.end(); ++it)
                 //std::cout << (*it).id << " ";
             //std::cout << std::endl; 
-            //for (int i = 0; i < nParticles; ++i) std::cout << " " << particles[i].index<< " " << particles[i].t;
-            //std::cout << std::endl << std::endl;
+            
+            //for (int i = 0; i < nParticles; ++i) std::cout << " " << particles[i].index<< "(" << particles[i].sheet << ") "  << particles[i].t;
+            //std::cout << std::endl;
 
             /* update left boundary collision with new leftmost particle */
             update_particle_task(-1);
@@ -327,11 +358,11 @@ void Universe::update_collision() {
     }
     else if (id == nParticles-1) { 
         collisions.erase(particles[id-1].task);
-        std::cout << "Before boundary collision last particle is at " << particles[id].x << std::endl;
+        //std::cout << "Before boundary collision last particle is at " << particles[id].x << std::endl;
         update_particle(id, t);
-        std::cout << "R After boundary collision last particle is at " << particles[id].x << std::endl;
-        std::cout << "Coll time was " << t << std::endl;
-        //particles[id].x = L/2;
+        //std::cout << "R After boundary collision last particle is at " << particles[id].x << std::endl;
+        //std::cout << "Coll time was " << t << std::endl;
+        std::cout << "R"; 
         //
         if (boundary == REFLECTIVE) { 
             particles[id].x = L/2 + Dx/2;
@@ -349,16 +380,16 @@ void Universe::update_collision() {
             ++particles[nParticles-1].sheet;
 
             /* take previous rightmost as new beginning of the array (new leftmost) */
-            //for (int i = 0; i < nParticles; ++i) std::cout << " " << particles[i].index <<" " << particles[i].t;
-            //std::cout << std::endl << std::endl;
             //for (auto particle : particles) std::cout << particle.index << " ";
             //std::cout << std::endl;
             std::rotate(particles.begin(), std::prev(particles.end()), particles.end());
             //for (auto particle : particles) std::cout << particle.index << " ";
             //std::cout << std::endl;
             rotation++;
-            for (CollisionTasks::iterator it = collisions.begin(); it != collisions.end(); ++it)
-                const_cast<Long&>((*it).id)++;
+            //for (int i = 0; i < nParticles; ++i) std::cout << " " << particles[i].index<< "(" << particles[i].sheet << ") "  << particles[i].t;
+            //std::cout << std::endl;
+            //for (CollisionTasks::iterator it = collisions.begin(); it != collisions.end(); ++it)
+                //const_cast<Long&>((*it).id)++;
 
             //for (CollisionTasks::iterator it = collisions.begin(); it != collisions.end(); ++it)
                 //std::cout << (*it).id << " ";
@@ -471,4 +502,7 @@ void Universe::update_collision() {
 
     }
 
+    //for (int i = 0; i < nParticles; ++i) std::cout << " " << particles[i].index<< " " << particles[i].t;
+    //std::cout << std::endl<<"coll part was " << id << " at " << t;
+    //std::cout << std::endl << std::endl;
 }

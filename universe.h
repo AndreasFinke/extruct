@@ -48,8 +48,15 @@ public:
 
     ParticleList particles; 
     CollisionTasks::iterator leftBoundaryTask;
-    Universe(const Background& bg, PowerSpectrum* ps, Float L, const Long seed, Long nParticles, int boundaryCondition) : L(L), pcg(0, seed), initDisplacement(1024), nParticles(nParticles), bg(bg), Dx(L/(nParticles-1)), boundary(boundaryCondition) {
-        std::cout << "Universe ctor. " << bg.isIntegrated << std::endl; 
+
+
+    Universe(Background bg, PowerSpectrum* ps, Float L, const Long seed, Long nParticles, int boundaryCondition) : L(L), pcg(0, seed), initDisplacement(1024), nParticles(nParticles), bg(bg), Dx(L/(nParticles-1)), boundary(boundaryCondition) {
+        std::cout << "Bang! ";
+        if (!bg.isIntegrated) {
+            std::cout << "Integrating background (because it has not yet been done)." << std::endl; 
+            this->bg.integrate(); 
+        }
+        std::cout << "Generating initial conditions with seed " << seed << std::endl;
         draw(ps);
     }
 
@@ -58,6 +65,7 @@ public:
     // this crashes the evolution after Multiverse::bang() ! 
     Universe& operator=(const Universe&) = delete;
     Universe(const Universe&) = delete;
+    Universe& operator=(Universe&&) = default;
     Universe(Universe&&) = default;
 
     ~Universe() {};
@@ -68,9 +76,11 @@ public:
     }
 
     Float get_particle_pos_standardized(Long i) const  { return (particles[i].x + Dx/2 + L/2)/(L+Dx); }
-    Float get_particle_pos(Long i) const  { return particles[i].x + particles[i].sheet*L; }
+    Float get_real_particle_pos_standardized(Long i) const  { return (particles[i].x + Dx/2 + L/2)/(L+Dx) + particles[i].sheet; }
+    //Float get_particle_pos(Long i) const  { return particles[i].x + particles[i].sheet*L; }
     Float get_particle_vel(Long i) const  { return particles[i].v; }
     Float get_particle_time(Long i) const { return particles[i].t; }
+    Long get_particle_id(Long i) const { return particles[i].index; }
     Long get_particle_collision_number(Long i) const { return particles[i].nCollisions; }
     ParticleList get_particles() const {return particles;}
 
@@ -133,11 +143,20 @@ private:
     void update_particle_task(Long i) {
         //Float collTime = particles[i].t + collision_time(i);
         //std::cout << "attempting computation of coll time for " << i << std::endl;
+        
+        //if (i==9) {
+            //if (particles[9].t > 20.343139812720) {
+                //std::cout << "Found moment " << std::endl;
+                //std::cout << "particle is at " << particles[9].x << " " << particles[9].v << std::endl;
+                ////update_particle(9,  25.83775386);
+                //std::cout << "particle will be at " << particles[9].x << std::endl;
+            //}
+        //}
         Float collTime = collision_time(i);
 
         //std::cout << "Coll time just computed for " << i <<" is " << collTime << std::endl;
         if (i >= 0) { 
-            particles[i].task = collisions.insert(RightCollision(i/*-rotation*/, collTime));
+            particles[i].task = collisions.insert(RightCollision(i-rotation, collTime));
         
             
             if (collTime <= particles[i].t) 
@@ -146,7 +165,7 @@ private:
             assert(collTime > particles[i].t);
         }
         else 
-            leftBoundaryTask = collisions.insert(RightCollision(i/*-rotation*/, collTime));
+            leftBoundaryTask = collisions.insert(RightCollision(i-rotation, collTime));
     }
 
     Float latestTime = 0;

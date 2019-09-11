@@ -117,12 +117,21 @@ public:
             if (D >= 0)
                 x -= - 2*yl*Dylinv/(1 + std::sqrt(D) );
             else {
-                std::cout << "Second case" << std::endl;
-                std::cout << "D = " << D << " is negative." << std::endl;
-                std::cout << "yl " << yl << " Dyl " << Dyl << " DDyl " << DDyl << " yr " << yr << " Dyr " << Dyr << " DDyr " << DDyr << " xl " << xl << " dx " << dx << std::endl << std::endl; 
+                //std::cout << "Second case" << std::endl;
+                //std::cout << "D = " << D << " is negative." << std::endl;
+                //std::cout << "yl " << yl << " Dyl " << Dyl << " DDyl " << DDyl << " yr " << yr << " Dyr " << Dyr << " DDyr " << DDyr << " xl " << xl << " dx " << dx << std::endl << std::endl; 
+                
+                for (int k = 0; k < 5; ++k) { 
+                    Float Dyinv = 1/Dy(yl, Dyl, yr, Dyr, xl, dx, x);
+                    //Float Dyinv = 1/y(Dyl, DDyl, Dyr, DDyr, xl, dx, x);
+                    Float foo = y(yl, Dyl, yr, Dyr, xl, dx, x)*Dyinv;
+                    x -= foo;
+                }
+
+                return x;
             }
 
-            assert(D>=0);
+            //assert(D>=0);
         }
 
 

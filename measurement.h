@@ -177,9 +177,19 @@ public:
 
         auto ps = universe.get_particles();
 
-        std::sort(ps.begin(), ps.end(), [](auto& lhs, auto& rhs) { return lhs.index < rhs.index;} );
+        /* will hold indices of particles sorted by their id */
+        std::vector<Long> sortedById(universe.nParticles);
+        /* fill with 0, 1, ... nParticles-1 */  
+        std::iota(std::begin(sortedById), std::end(sortedById), 0);
 
-        for (int i = 0; i < universe.nParticles-1; ++i) {
+        //std::sort(ps.begin(), ps.end(), [](auto& lhs, auto& rhs) { return lhs.index < rhs.index;} );
+        std::sort(sortedById.begin(), sortedById.end(), 
+                [&](const Long& a, const Long& b) { 
+                    return universe.get_particle_id(a) < universe.get_particle_id(b);
+                }  
+        );
+
+        for (int i = 0; i < universe.nParticles; ++i) {
 
             if (universe.boundary == universe.REFLECTIVE) {
 
@@ -187,17 +197,28 @@ public:
             else if (universe.boundary == universe.PERIODIC) {
             
             }
-            Float xL = ps[i].x/universe.L + 0.5 + ps[i].sheet;
-            Float xR = ps[i+1].x/universe.L + 0.5 + ps[i].sheet;
+
+            Float xL = universe.get_real_particle_pos_standardized(sortedById[i]);
+            /* wrap around at the end */
+            Float xR = ( i+1 < universe.nParticles ) ? universe.get_real_particle_pos_standardized(sortedById[i+1])
+                : (universe.get_real_particle_pos_standardized(sortedById[0]) + 1);
+            //Float xL = ps[i].x/universe.L + 0.5 + ps[i].sheet;
+            //Float xR = ps[(i+1)%nParticles].x/universe.L + 0.5 + ps[i].sheet;
 
             if (xL > xR) 
                 std::swap(xL, xR);
 
-            int idxL = xL * res;
-            int idxR = xR * res;
+            int idxL = std::floor(xL * res);
+            int idxR = std::floor(xR * res);
 
             Float fracL = 1- (res*xL-idxL);
             Float fracR = 1- (res*xR-idxR);
+
+            //if (i == universe.nParticles-1)
+            //{
+                //fracL = 1-fracL;
+                //fracR = 1-fracR;
+            //}
 
             //if (idxL > res - 1) idxL = res - 1;
             //if (idxR > res - 1) idxR = res - 1;
@@ -205,10 +226,13 @@ public:
             //if (idxL < 0) idxR = 0;
 
 
+            /* this function always returns a positive number, unlike % */
+            auto mod = [res=res](Long n) {return (n%res+res)%res;};
+
             if (idxL == idxR) { 
                 //Float A2 = A*0.5;
                 //
-                datap[res+idxL%res] += A;
+                datap[res+mod(idxL)] += A;
                 //datap[res+idxL] += A2 * ( fracL + fracR );
                 //datap[res+idxL+1] += A2 * ( 2  - fracL - fracR );
                 //
@@ -217,8 +241,8 @@ public:
             }
             else if (idxR == idxL + 1) {
 
-                datap[res+idxL%res] += A * fracL/(fracL + 1 - fracR);
-                datap[res+idxR%res] += A * (1-fracR)/(fracL + 1 - fracR);
+                datap[res+mod(idxL)] += A * fracL/(fracL + 1 - fracR);
+                datap[res+mod(idxR)] += A * (1-fracR)/(fracL + 1 - fracR);
                 //datap[res+idxL] += A2 * fracL;
                 //datap[res+idxR+1] += A2 * ( 1 - fracR );
                 //datap[res+idxR] += A - A2*fracL - A2*(1-fracR)
@@ -228,19 +252,21 @@ public:
 
                 int d = idxR - idxL;
 
-                datap[res+idxL%res] += A * fracL/(fracL + d - fracR);
-                datap[res+idxR%res] += A * (1-fracR)/(fracL + d - fracR);
+                datap[res+mod(idxL)] += A * fracL/(fracL + d - fracR);
+                datap[res+mod(idxR)] += A * (1-fracR)/(fracL + d - fracR);
 
                 //std::cout << " added " <<  A * fracL/(fracL + d - fracR) << " and " << (1-fracR)/(fracL + d - fracR) << " to bin " << res + idxL << " and " << res + idxR;
 
                 for (int k = idxL+1; k < idxR; ++k) { 
-                        datap[res+k%res] += A/(fracL + d - fracR);
+                        datap[res+mod(k)] += A/(fracL + d - fracR);
 
                         //std::cout << " and also " << A/(fracL + d - fracR) << " to " << res + k;
                 }
                 //std::cout << std::endl;
 
             }
+            if  (fracL/(fracL + 1 - fracR) < 0 || (1-fracR)/(fracL + 1 - fracR) < 0 ) 
+                std::cout << "fracs are " << fracL << " " << fracR << std::endl;
 
         }
 
@@ -355,8 +381,8 @@ public:
                 double rs = 0, rc = 0;
                 for (int j = 0; j < universe.nParticles; ++j) {
                     //c += A*std::exp(1if * float(datap[i] * universe.get_particle_pos(j)));
-                    rs += std::sin(datap[i] * universe.get_particle_pos(j));
-                    rc += std::cos(datap[i] * universe.get_particle_pos(j));
+                    rs += std::sin(datap[i] * universe.get_particle_pos_standardized(j));
+                    rc += std::cos(datap[i] * universe.get_particle_pos_standardized(j));
                 }
                 //datap[res+i] += std::abs(c);
                 datap[res+i] += A*std::sqrt(rs*rs+rc*rc);
@@ -372,8 +398,8 @@ public:
                     // int_a^b dx exp(i x k_j)  = 1/ik (exp(iak) - exp(ibk)) = exp(i (a+b)/2 k)/ik (exp(i (a-b)k/2) - exp(-i(a-b)k/2)) 
                     // but for density, there is another 1/(b-a) 
                     // so  -exp(i(a+b)k/2) sinc((b-a)k/2)) = (-cos((a+b)k/2) sinc((b-a)k/2), -sin((a+b)k/2) sinc((b-a)k/2))
-                    Float a = universe.get_particle_pos(j); 
-                    Float b = universe.get_particle_pos(j+1);
+                    Float a = universe.get_particle_pos_standardized(j); 
+                    Float b = universe.get_particle_pos_standardized(j+1);
                     if (a > b)
                         std::swap(a,b);
                     Float sincarg = (b-a)*datap[i]*0.5;

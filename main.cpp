@@ -14,9 +14,10 @@
 #include "multiverse.h"
 #include "universe.h"
 #include "background.h"
-//
+
+// there is still a sort of bug for less integration steps: periodic boundaries lead to D<0 in spline.h 
+// understand why first branch never happens 
 // connect points in phase space; find density. 
-// number of collision observable. 
 // power spectra as planned 
 // replace ints by Longs
 // do warnings
@@ -49,29 +50,32 @@ int main() {
 
     //std::cout << int(-0.3) << " " << std::floor(-0.3) << " " << 
         //(-1)%7 << std::endl;
-    START_NAMED_TIMER("Big Bang")
+    //START_NAMED_TIMER("Big Bang")
 
     Background bg;
     bg.integrate();
 
     std::cout <<  "Final tau = " << bg.getFinalTau() << std::endl;
-    Multiverse mv;
+    Multiverse mv(2);
     PowerLaw * pl = new PowerLaw();
-    pl->A = 0.00004;
+    pl->A = 0.000003;
 
     DensityObs2 * d = new DensityObs2(200);
 
-    for (int i = 0; i < 1; ++i) {
-        mv.bang(100, bg, pl, 1, 1);
+    for (int i = 0; i < 10; ++i) {
+        mv.bang(1000, bg, pl, 1, 1);
     }
 
-    STOP_TIMER
+    //STOP_TIMER
 
-    START_NAMED_TIMER("Evolution")
+    //START_NAMED_TIMER("Evolution")
 
     mv.evolveAll(0);
-
-    STOP_TIMER
+    //std::cout << "first" << std::endl;
+    //mv.evolve(9, 0);
+    //std::cout << "second" << std::endl;
+    //mv.evolve(8, 0);
+    //STOP_TIMER
 
     START_NAMED_TIMER("Density2")
     mv.measureAll(d);
@@ -112,7 +116,7 @@ PYBIND11_MODULE(extruct, m) {
         //.def("draw", &Universe::draw)
         //.def("density", &Universe::density);
     py::class_<Multiverse>(m, "Multiverse")
-        .def(py::init<>())
+        .def(py::init<Long>())
         .def("bang", &Multiverse::bang)
         .def("evolve", &Multiverse::evolve)
         .def("evolveAll", &Multiverse::evolveAll)

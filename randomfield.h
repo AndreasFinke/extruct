@@ -19,6 +19,10 @@ public:
         modes.reserve(nGrid);
     }
 
+    RandomField(RandomField&& other) : RandomField(other.nGrid) {
+        field = std::move(other.field);
+        modes = std::move(other.modes);
+    }
     
     void generate(pcg32& pcg, PowerSpectrum* spec) {
 
@@ -69,7 +73,8 @@ public:
 
     Float get_field(Float x) {
         assert(x >= 0);
-        Long idx = std::min(Long(x*nGrid), nGrid);
+        Long idx = std::min(Long(x*nGrid), nGrid-1);
+
         return field[idx];
     }
 
