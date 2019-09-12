@@ -400,7 +400,7 @@ public:
                     }  
             );
 
-            for (int i = 0; i < res; ++i) {
+            for (int i = 1; i < res; ++i) {
                 //std::complex<float> c = 0;
                 double rs = 0, rc = 0;
                 for (int j = 0; j < universe.nParticles; ++j) {
@@ -424,6 +424,8 @@ public:
                 //datap[res+i] += std::abs(c);
                 datap[res+i] += A*(rs*rs+rc*rc);
             }
+            /* we excluded k=0 above - this is the exact result */ 
+            datap[res] += A*universe.nParticles*universe.nParticles; 
         }
 
         if (method == 2) {
@@ -477,7 +479,7 @@ class CorrelationFunctionObs : public Measurement {
 public:
 
     CorrelationFunctionObs(int method, int res) : Measurement(4*res*2), method(method), res(res) {
-        psobs = new PowerSpectrumObs(0, res, 1); 
+        psobs = new PowerSpectrumObs(1, res, 1); 
         dataTypeSize = 4;
         rows = 2;
         cols = res;
@@ -499,9 +501,33 @@ public:
     virtual void measure(const Universe& universe, int N) {
         Measurement::measure(universe, N);
 
-        psobs->measure(universe, N);
+        float A = 1.f / N; 
 
-        std::memcpy(datap, psobs->data, bytes) ;
+        psobs->measure(universe, 1);
+
+        double *out;
+        double *in;
+        fftw_plan p;
+        in = (double*) fftw_malloc(sizeof(double) * 1 * res);
+        
+        for (int i = 0; i < 1*res; ++i) {
+            in[i] = psobs->datap[1*res+i];
+        }
+
+        out = (double*) fftw_malloc(sizeof(double) * 1 * res);
+
+    //p = fftw_plan_dft_1d(nGrid, reinterpret_cast<fftw_complex*>(&modes[0]), reinterpret_cast<fftw_complex*>(&field[0]), FFTW_BACKWARD, FFTW_ESTIMATE);
+        p = fftw_plan_r2r_1d(1*res, in, out, FFTW_REDFT00, FFTW_ESTIMATE);
+        //p = fftw_plan_r2r_1d(1*res, in, out, FFTW_REDFT00);
+        fftw_execute(p); 
+
+        for (int i = 0; i < res; ++i) {
+            datap[i+res] += A*out[i];
+        }
+
+        fftw_destroy_plan(p);
+        fftw_free(in); 
+        fftw_free(out);
     }
 private:
 
