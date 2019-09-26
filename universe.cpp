@@ -10,28 +10,49 @@ void Universe::sampleParticles() {
     // fill particles according to displacement field 
     Float totalVel = 0;
     for (Long i = 0; i < nParticles; ++i) {
+
         Float x = (i+1)*L/(nParticles+1);
         x = i*L/(nParticles-1);
-        //std::cout << x << std::endl;
-        /* random field expects 0..1 grid coords */
-        Float disp = initDisplacement.get_field(x/L);
+
+
+        /* random field expects 0..1 grid coords and does not include a length dimension*/
+        Float disp = L*initDisplacement.get_displacement(x/L);
         x -= L/2;
-        //x *= 0.999;
-        //std::cout << disp << " "; 
-        //
-        /* if displ = D1*A, vel is D2d*A = D1d/D1*displ */
-        /* but for now my D1 is 0 initially... just use H instead of D1d/D1 - which is D2! */
-        Float dh = bg.D2[0]*bg.h;
-        Float vel  = disp*dh;
+
+
+        /* if displ = D1*A, vel is D1d*A = D1d/D1*displ */
+        /* but for now my D1 is 0 initially... the growing mode of matter would instead be the scale factor. 
+         * Then we just find the Hubble rate (which is D2) in place of the ratio! -  But with a factor of a^2 for getting the tau-derivative! */
+
+        if (bg.zin < 10 && bg.Om < 0.9) 
+            std::cout << "Initial redshift under 10 in a non - Einstein - de Sitter - univere. Initial particle veloctities may be inaccurate." << std::endl;
+        if (std::fabs(bg.Oc)/(bg.zin+1) > 0.001 ) 
+            std::cout << "Nonzero curvature at late starting redshift causes an error of about " << 100*std::fabs(bg.Oc)/(bg.zin+1) << " \% on the initial particle velocities." << std::endl;
+
+        Float vel =  disp*bg.h*bg.D2[0]*bg.ain*bg.ain;
 
         short sheet = 0;
         if (x+disp < -L/2 - Dx/2)  {
-            x += L+Dx;
-            sheet--;
+            std::cout << "Warning: Large initial displacments caused wrap-around at boundary." << std::endl; 
+            if (boundary == REFLECTIVE) {
+                disp += 2*(-L/2-Dx/2-x-disp);
+                vel = -vel;
+            }
+            else {
+                x += L+Dx;
+                sheet--;
+            }
         }
         else if (x+disp > L/2 + Dx/2) { 
-            x -= (L+Dx);
-            sheet++;
+            std::cout << "Warning: Large initial displacments caused wrap-around at boundary." << std::endl; 
+            if (boundary == REFLECTIVE) {
+                disp -= 2*(x+disp-L/2-Dx/2);
+                vel = -vel;
+            }
+            else { 
+                x -= (L+Dx);
+                sheet++;
+            }
         }
 
         particles.push_back(Particle(x+disp, vel, i, sheet));
@@ -60,8 +81,8 @@ void Universe::sampleParticles() {
         std::cout << "... done." << std::endl;
     }
 
-            for (int i = 0; i < nParticles; ++i) std::cout << " " << particles[i].index;
-            std::cout << std::endl << std::endl;
+            //for (int i = 0; i < nParticles; ++i) std::cout << " " << particles[i].index;
+            //std::cout << std::endl << std::endl;
     // tasks 
     collisions.clear();
     for (Long i = -1; i < nParticles; ++i) 

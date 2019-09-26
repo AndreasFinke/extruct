@@ -1,22 +1,27 @@
 
 #pragma once
 
-#include "spline.h"
 #include "main.h"
+#include <vector>
+#include "spline.h"
 #include <utility>
 #include <array>
+#include <tuple>
 
 struct Background {
 
     friend class Universe; 
+    friend class BBKS; 
     // default is standard LCDM without radiation but curvature 
 
     Background() {} //use standard parameters (see in class definition)
 
     Background(Float zin, Float zfin, Float Om, Float h, Float hf, Float Oc) : Om(Om), h(h), hf(hf), Oc(Oc), zin(zin), zfin(zfin) { 
+        ain = 1/(zin+1);
     }
 
     Background(Float zin, Float zfin, Float Om, Float h, Float Oc) : Om(Om), h(h), hf(h), Oc(Oc), zin(zin), zfin(zfin) { 
+        ain = 1/(zin+1);
     }
     // for other cosmologies, instead load the bg functions from file 
     Background(std::string& file) {
@@ -63,6 +68,7 @@ struct Background {
 
 private:
     Float zin = 100, zfin = 0, Om = 0.3, h = 0.7, hf = 0.7, Oc = 0;
+    Float ain = Float(1)/Float(101);
     Float taufin = 0;
     Float dtau = 1;
 
@@ -133,7 +139,7 @@ public:
         return Spline::find_zero(1/(1+z)-yL, -DyL, 1/(1+z)-yR, -DyR, idxL*dtau, dtau);
     }
 
-    Float getAOfZ(Float z) { return getScaleFactor(getTauOfZ(z)); }
+//    Float getAOfZ(Float z) { return getScaleFactor(getTauOfZ(z)); }
 
     Float getPhysTime(Float tau) {
         int idx;
@@ -216,6 +222,24 @@ public:
         Float m = 1.5*Om*h*h;
         return Spline::y(Pecd[idx], m*a[idx]*(Pec[idx]-1), Pecd[idx+1], m*a[idx+1]*(Pec[idx+1]-1), taul, dtau, tau);
     }
+
+    Float getGrowth(Float z) {
+
+        Float Delta0 = 1;
+        /* we set it on the EdS growing mode at the start of the integration. need da/dtau = da/dt dt/dtau = a^3 H */  
+        /* but the growth factor here is normalized to 1 by division by ain (D = a(t)/ain). The derivative is divided as well, 
+         * giving a^2 H as a factor */
+        Float Deltad0 = ain*ain*E(ain)*h;
+        Float c1 = - (Delta0)*D2d[0] + (Deltad0)*D2[0];
+        Float c2 =   (Delta0)*D1d[0] - (Deltad0)*D1[0];
+
+        Float tau = getTauOfZ(z);
+        Float D1 = getD1(tau);
+        Float D2 = getD2(tau);
+
+        return c1*D1 + c2*D2;
+    }
+
 
     void integrate() {
 

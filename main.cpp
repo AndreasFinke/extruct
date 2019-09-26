@@ -1,8 +1,10 @@
 #include "timer.h"
 #include <random>
 #include <tbb/tbb.h>
-//#include <Eigen/Geometry>
 #include <iostream>
+
+#include "ExactSum.h"
+#include "sum.h"
 
 
 //#include <pybind11/numpy.h>
@@ -46,11 +48,14 @@ void print_contents(const C<T, A>& v, const char * const separator = ", ")
 
 #if PY == 0 
 
-int main() {
+double fac(long n) {
+    double ret = 1;
+    for (Long i = 2; i <= n; ++i)
+        ret *= i;
+    return ret;
+}
 
-    //std::cout << int(-0.3) << " " << std::floor(-0.3) << " " << 
-        //(-1)%7 << std::endl;
-    //START_NAMED_TIMER("Big Bang")
+int main() {
 
     Background bg;
     bg.integrate();
@@ -124,15 +129,21 @@ PYBIND11_MODULE(extruct, m) {
         .def("measureAll", &Multiverse::measureAll);
     py::class_<PowerSpectrum> powerspec(m, "PowerSpectrum");
     powerspec
-        .def("eval", &PowerSpectrum::eval);
+        .def("eval_dimless", &PowerSpectrum::eval_dimless);
     py::class_<PowerLaw, PowerSpectrum>(m, "PowerLaw")
         .def(py::init<>())
         .def_readwrite("A", &PowerLaw::A);
+    py::class_<BBKS, PowerSpectrum>(m, "BBKS")
+        //.def("eval", &BBKS::eval)
+        .def(py::init<const Background&, Float, bool>())
+        .def_readwrite("A", &BBKS::A);
     py::class_<Measurement> measurement(m, "Measurement");
     measurement
         .def("getResult", &Measurement::getResult)
         .def("measure", &Measurement::measure);
     py::class_<DensityObs, Measurement>(m, "DensityObs")
+        .def(py::init<int>());
+    py::class_<DisplacementField, Measurement>(m, "DisplacementField")
         .def(py::init<int>());
     py::class_<DensityObs2, Measurement>(m, "DensityObs2")
         .def(py::init<int>());
@@ -141,9 +152,11 @@ PYBIND11_MODULE(extruct, m) {
     py::class_<PhaseSpaceDensityObs, Measurement>(m, "PhaseSpaceDensityObs")
         .def(py::init<int>());
     py::class_<PowerSpectrumObs, Measurement>(m, "PowerSpectrumObs")
-        .def(py::init<int, int, int>());
-    py::class_<CorrelationFunctionObs, Measurement>(m, "CorrelationFunctionObs")
-        .def(py::init<int, int>());
+        .def(py::init<int, int, Float, int>());
+    //py::class_<CorrelationFunctionObs, Measurement>(m, "CorrelationFunctionObs")
+        //.def(py::init<int, int>());
+    //py::class_<PowerSpectrum3DObs, Measurement>(m, "PowerSpectrum3DObs")
+        //.def(py::init<int, int>());
     py::class_<Background>(m, "Background")
         .def(py::init<>())
         .def(py::init<Float, Float, Float, Float, Float>())
@@ -155,8 +168,8 @@ PYBIND11_MODULE(extruct, m) {
         .def("getD1d", &Background::getD1d)
         .def("getD2d", &Background::getD2d)
         .def("getPec", &Background::getPec)
-        .def("getAOfZ", &Background::getAOfZ)
-        .def("getPecd", &Background::getPecd);
+        .def("getPecd", &Background::getPecd)
+        .def("getGrowth", &Background::getGrowth);
 }
 
 #endif

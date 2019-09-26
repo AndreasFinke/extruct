@@ -50,7 +50,9 @@ public:
     CollisionTasks::iterator leftBoundaryTask;
 
 
-    Universe(Background bg, PowerSpectrum* ps, Float L, const Long seed, Long nParticles, int boundaryCondition) : L(L), pcg(0, seed), initDisplacement(1024), nParticles(nParticles), bg(bg), Dx(L/(nParticles-1)), boundary(boundaryCondition) {
+    /* the factor of 1/8: it so happens that 4 particles per fourier bin of the initial spectrum avoids seeing top-hat related artifacts. but we don't want such high-frequency IC components in the system
+     * beyond the ones that can be resolved by the particles - it will be aliasing noise at much lower frequencies otherwise. Factor 1/2 may be enough. But if we want to restrict to 4 particles / fourier bin max fourier frequency for FFT analysis, we should have another 1/4... */
+    Universe(Background bg, PowerSpectrum* ps, Float L, const Long seed, Long nParticles, int boundaryCondition) : L(L), pcg(0, seed), nParticles(nParticles), initDisplacement(nParticles/2), bg(bg), Dx(L/(nParticles-1)), boundary(boundaryCondition) {
         std::cout << "Bang! ";
         if (!bg.isIntegrated) {
             std::cout << "Integrating background (because it has not yet been done)." << std::endl; 
@@ -181,7 +183,9 @@ private:
 
     void sampleParticles(); 
 
+public:
     RandomField initDisplacement;
+private:
     Float find_max_timestep();
     void integrate_step(Float timestep);
 };
