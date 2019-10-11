@@ -546,7 +546,7 @@ public:
             Float exponent = 1 + int(std::log(datap[res-1]*L*hor/(2*pi))/std::log(2.0));
             //std::cout << "exponent is " << exponent << std::endl;
             int res_fourier = std::round(std::pow(2, exponent));
-            const int res_max = 4096*128;
+            const int res_max = 4096*128*4;
             //std::cout << 2*res_fourier  << std::endl;
             skip = std::max(1, res_fourier/res_max);
             //std::cout << skip  << std::endl;
@@ -579,7 +579,7 @@ public:
                 w = w*w;
                 w = 1 - w;
                 w = 1;
-                in[i] = w*(densobs->datap[2*res_fourier+i]-avg);
+                in[i] = w*(densobs->datap[2*res_fourier+i]-avg)/universe.nParticles;
             }
 
             //std::cout << "alive 3" << std::endl;

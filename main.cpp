@@ -134,9 +134,12 @@ PYBIND11_MODULE(extruct, m) {
         .def(py::init<>())
         .def_readwrite("A", &PowerLaw::A);
     py::class_<BBKS, PowerSpectrum>(m, "BBKS")
-        //.def("eval", &BBKS::eval)
-        .def(py::init<const Background&, Float, bool>())
-        .def_readwrite("A", &BBKS::A);
+        .def("eval", &BBKS::eval)
+        .def(py::init<const Background&, Float, bool, bool, Float>())
+        .def_readwrite("A", &BBKS::A)
+        .def_readwrite("n", &BBKS::n)
+        .def("set_dimless", &BBKS::set_dimless)
+        .def("numModes", &BBKS::numModes); 
     py::class_<Measurement> measurement(m, "Measurement");
     measurement
         .def("getResult", &Measurement::getResult)

@@ -445,7 +445,7 @@ void Universe::update_collision() {
 
         // positions should now agree - check 
         //std::cout << "pos should now agree - id " << id << " error " << std::fabs(particles[id].x - particles[id+1].x)/particles[id].x << std::endl; 
-        if (std::fabs(particles[id].x - particles[id+1].x) > 1e-10)
+        if (std::fabs(particles[id].x - particles[id+1].x) > 1e-8*L)
         {
             std::cout.precision(18);
             std::cout << "Unequal positions of " << id << ", " << id+1 << " at times " << particles[id].t << " " << particles[id+1].t <<  std::endl;

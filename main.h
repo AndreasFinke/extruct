@@ -24,9 +24,10 @@ namespace py = pybind11;
 
 
 static constexpr Float pi = 3.141592653589793238462643383279502884197169399375105820974944592307816;
+static constexpr Float e = 2.718281828459045235360287471352662497757247093699959574966967627724076630353;
 
 /* [100 km/s /Mpc (/c)]^-1 in Mpc */
-static constexpr Float hor = 2997.92348; 
+static constexpr Float hor = 2997.92458; 
 
 using namespace std::complex_literals;
 
@@ -73,13 +74,19 @@ class BBKS : public PowerSpectrum {
 
 public:
 
-    BBKS(const Background& bg, Float L, bool forceEqualCorrelation = true) : L(L) {
+    BBKS(const Background& bg, Float L, bool useEisensteinHu, bool forceEqualCorrelation = true, Float omegab = 0.0224) : L(L), EisensteinHu(useEisensteinHu) {
 
         pk.reserve(nModes);
         Omh2 = bg.h*bg.h*bg.Om;
+        Om = bg.Om;
 
-        const Float n = 0.9656;
-        const Float a1 = 2.205, a2 = 4.05,  a3 = 18.3,  a4 = 8.725,  a5 = 8; 
+        /* Planck 2018 */ 
+        Obh2 = omegab;
+        Ob = Obh2 / bg.h / bg.h;
+
+        h = bg.h;
+        //Ob = 0.00001;
+        //Obh2 = Ob*bg.h*bg.h;
 
         double * in; 
         in = (double*) fftw_malloc(sizeof(double) * (nModes-1 + 2));
@@ -93,20 +100,7 @@ public:
             Float k = 2*pi*i;
             Float kphys = k / (L*hor); 
 
-            /*Float q = k./OmH2; %q formula actually also contains /Mpc^-1 so it is dimless (see BBKS App 7)  */
-            Float q = kphys / Omh2;  
-            Float b1 = a1*q;
-            Float b2 = a2*q;
-            Float b3 = a3*q;
-            Float b4 = a4*q;
-            Float b5 = a5*q;
-
-            Float pre = std::log(1+b1)/b1;
-            pre = pre*pre;
-
-            b5 = b5*b5;
-
-            in[i] = std::pow(kphys, n) *pre/std::sqrt(1 + b2 + b3*b3 + b4*b4*b4 + b5*b5);
+            in[i] = eval(kphys);
 
             if (forceEqualCorrelation) {
                 Float dkphys = 2*pi/(L*hor); 
@@ -226,12 +220,105 @@ public:
 
     }
 
+    /* returns the 3d fits in Mpc^3 expecting k in 1/Mpc without little h! */
+    Float eval(Float kphys) {
+
+        if (!EisensteinHu) { /*BBKS fit */
+
+            const Float a1 = 2.205, a2 = 4.05,  a3 = 18.3,  a4 = 8.725,  a5 = 8; 
+            /*Float q = k./OmH2; %q formula actually also contains /Mpc^-1 so it is dimless (see BBKS App 7)  */
+            /* I think it expects units of h/Mpc though, so to convert there by dividing our k by h */
+            Float q = (kphys/h) / Omh2;  
+            Float b1 = a1*q;
+            Float b2 = a2*q;
+            Float b3 = a3*q;
+            Float b4 = a4*q;
+            Float b5 = a5*q;
+
+            Float pre = std::log(1+b1)/b1;
+            pre = pre*pre;
+
+            b5 = b5*b5;
+
+            return A*std::pow(kphys/h, n) *pre/std::sqrt(1 + b2 + b3*b3 + b4*b4*b4 + b5*b5);
+        }
+        else {
+
+            Float Thetainv = Float(2.7)/Tcmb;
+            Float Thetainvsq = Thetainv*Thetainv;
+            Float zeq = Float(2.5e4)*Omh2*Thetainvsq*Thetainvsq;
+            Float keq = Float(7.46e-2)*Omh2*Thetainvsq;
+
+            Float b1 = Float(0.313)*std::pow(Omh2, Float(-0.419))*(1+Float(0.607)*std::pow(Omh2, Float(0.674)));
+            Float b2 = Float(0.238)*std::pow(Omh2, Float(0.223));
+            Float zd = Float(1291)*std::pow(Omh2, Float(0.251))/(1+Float(0.659)*std::pow(Omh2, Float(0.828))) * (1+b1*std::pow(Obh2, b2));
+
+            Float Req = Float(31.5)*Obh2*Thetainvsq*Thetainvsq/(Float(1e-3)*zeq);
+            Float Rd =  Float(31.5)*Obh2*Thetainvsq*Thetainvsq/(Float(1e-3)*zd);
+
+            Float s = 2/(3*keq)*std::sqrt(6/Req)*std::log((std::sqrt(1+Rd)+std::sqrt(Rd+Req))/(1+std::sqrt(Req)));
+            Float ksilk = Float(1.6)*std::pow(Obh2,Float(0.52))*std::pow(Omh2, Float(0.73))*(1+std::pow(Float(10.4)*Omh2, Float(-0.95)));
+
+            Float q = kphys / (Float(13.41)*keq);
+            Float a1 = std::pow(Float(46.9)*Omh2, Float(0.670))*(1+std::pow(Float(32.1*Omh2),Float(-0.532)));
+            Float a2 = std::pow(Float(12.0)*Omh2, Float(0.424))*(1+std::pow(Float(45.0*Omh2),Float(-0.582)));
+                  b1 = Float(0.944)/(1+std::pow(458*Omh2, Float(-0.708)));
+                  b2 = std::pow(Float(0.395)*Omh2, Float(-0.0266));
+
+            Float ObOm = Ob/Om;
+            Float alphac = std::pow(a1, -ObOm)*std::pow(a2, -ObOm*ObOm*ObOm);
+            Float betac = 1/( 1+b1*(std::pow((Om-Ob)/Om,b2)-1) );
+
+            auto C = [&] (Float aa) {return Float(14.2)/aa + 386/(1+Float(69.9)*std::pow(q, Float(1.08)));};
+            auto T0 = [&] (Float aa, Float bb) {return std::log(e + Float(1.8)*bb*q)/(std::log(e + Float(1.8)*bb*q) + C(aa)*q*q);};
+            Float x = kphys*s/Float(5.4);
+            x *= x;
+            x *= x;
+            Float f = 1/(1+x);
+            //f = 1;
+            
+            Float Tc = f*T0(1,betac) + (1-f)*T0(alphac, betac);
+
+
+            Float y = (1+zeq)/(1+zd);
+            Float G = y*(-6*std::sqrt(1+y) + (2+3*y)*std::log((std::sqrt(1+y)+1)/(std::sqrt(1+y)-1)));
+            Float alphab = Float(2.07)*keq*s*std::pow(1+Rd, Float(-0.75))*G;
+            Float betab = Float(0.5) + Ob/Om + (3-2*Ob/Om)*std::sqrt(Float(17.2*17.2)*Omh2*Omh2+1);
+            Float betanode = Float(8.41)*std::pow(Omh2, Float(0.435));
+            Float t = betanode/(kphys*s);
+            t = t*t*t;
+            Float stilde = s/std::pow(1+t, 1/Float(3));
+
+            t = betab/(kphys*s);
+            t = t*t*t;
+            x = kphys*s/Float(5.2);
+            x *= x;
+            Float sincarg = kphys*stilde;
+            Float Tb = (T0(1,1)/(1+x) + alphab/(1+t)*std::exp( - std::pow(kphys/ksilk, Float(1.4)))) * std::sin(sincarg)/sincarg;
+           
+            Float T = Ob/Om * Tb + (Om - Ob)/Om * Tc; 
+
+            Float deltaH = 0;
+             //Bunn & White, 96, "The Four-Year COBE Normalization and Large-Scale Structure" 
+            //if (bg.isIntegrated) {
+                //deltaH = As*bg.getGrowth(0)/bg.Om;  
+            //}
+            //else {
+                Float nbar = n-1;
+                /* see also (A1) - (A3) in Eisenstein-Hu 97 "Baryonic Features ... "*/
+                deltaH = Float(1.94e-5)*std::pow(Om, -Float(0.785)-Float(0.05)*std::log(Om))*std::exp(-Float(0.95)*nbar - Float(0.169)*nbar*nbar);
+                //std::cout << "Background not integrated yet when computing power spectrum. Using old normalization fit based on COBE and ignoring As." << std::endl;
+            //}
+
+            return A*deltaH*deltaH*2*pi*pi*hor*hor*hor/(h*h*h)*std::pow(kphys*hor/h, n) * T * T;
+        }
+    }
     /* returns the dimensionless power of the dimensionless fourier series mode, P(k)/L ! */
     virtual Float eval_dimless(int k) const  {
 
-
+        /* since pk array got filled in constructor when A=1, we need to multiply by A here, too */
         if (k >= 0 && k < nModes)
-            return A*pk[k]/L;
+            return A*pk[k]/(L*hor);
         else {
             std::cout << "Warning: evaluating BBKS power spectrum for higher mode number " << k << " than the maximal computed one " << nModes << " - returning 0." << std::endl;
             return 0;
@@ -239,12 +326,33 @@ public:
 
     }
 
-    virtual ~BBKS() {
+    void set_dimless(int k, Float p)  {
+
+        if (k >= 0 && k < nModes)
+            pk[k] = p*L*hor/A;
+        else {
+            std::cout << "Warning: setting BBKS power spectrum for higher mode number " << k << " than the maximal computed one " << nModes << " - returning 0." << std::endl;
+        }
+
     }
 
-    Float A = 0.1;
-    Float Omh2 = 0.15;
-    Float L = 1;
+    int numModes() const {
+        return nModes;
+    }
+
+    virtual ~BBKS() {
+    }
+  
+    Float L;
+
+    Float A = 1;
+    Float n = 0.965;
+    Float Tcmb = 2.728;
+
+    Float Om, Ob, Omh2, Obh2, h;
+
+    bool EisensteinHu = false;
+
     static constexpr int nModes = 1000000*2;
 
 private:

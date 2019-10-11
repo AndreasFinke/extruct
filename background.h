@@ -67,7 +67,7 @@ struct Background {
 
 
 private:
-    Float zin = 100, zfin = 0, Om = 0.3, h = 0.7, hf = 0.7, Oc = 0;
+    Float zin = 100, zfin = 0, Om = (0.12 + 0.0224) /0.674/0.674, h = 0.674, hf = 0.674, Oc = 0;
     Float ain = Float(1)/Float(101);
     Float taufin = 0;
     Float dtau = 1;
@@ -95,24 +95,24 @@ private:
     //Float t[NTABLE];
 
     // this is the Hubble rate (up to a missing factor of H0) given the scale factor, Om, and Oc 
-    Float E(Float a) { 
+    Float E(Float a) const { 
         Float ainv = 1/a;
         Float asqinv = ainv*ainv;
         return sqrt(Om*asqinv*ainv + Oc*asqinv + (1-Oc-Om));
     };
 
     // returns pair of index of time bin to the left of argument as well as that bins time 
-    auto getTimeBin(Float tau){
+    auto getTimeBin(Float tau) const {
         int idx = std::min(NTABLE-1, int(tau/dtau));
         return std::make_pair(idx, idx*dtau);
     }
 
 public:
 
-    Float getOm() {return Om;} 
-    Float getFinalTau() { return taufin; }
+    Float getOm() const {return Om;} 
+    Float getFinalTau() const { return taufin; }
 
-    Float getScaleFactor(Float tau) {
+    Float getScaleFactor(Float tau) const {
         int idx;
         Float taul;
         std::tie(idx, taul) = getTimeBin(tau);
@@ -123,7 +123,7 @@ public:
         return Spline::y(a[idx], a[idx]*a[idx]*a[idx]*E(a[idx])*h, a[idx+1], a[idx+1]*a[idx+1]*a[idx+1]*E(a[idx+1])*h, taul, dtau, tau);
     }
 
-    Float getTauOfZ(Float z) {
+    Float getTauOfZ(Float z) const {
         int idxR = 1;
         for (; a[idxR] < 1/(1+z); ++idxR) {
             if (idxR == NTABLE)
@@ -141,7 +141,7 @@ public:
 
 //    Float getAOfZ(Float z) { return getScaleFactor(getTauOfZ(z)); }
 
-    Float getPhysTime(Float tau) {
+    Float getPhysTime(Float tau) const {
         int idx;
         Float taul;
         std::tie(idx, taul) = getTimeBin(tau);
@@ -152,7 +152,7 @@ public:
         return Spline::y(t[idx], a[idx]*a[idx], t[idx+1], a[idx+1]*a[idx+1], taul, dtau, tau);
     }
 
-    Float getD1(Float tau) {
+    Float getD1(Float tau) const {
         int idx;
         Float taul;
         std::tie(idx, taul) = getTimeBin(tau);
@@ -163,7 +163,7 @@ public:
         return Spline::y(D1[idx], D1d[idx], D1[idx+1], D1d[idx+1], taul, dtau, tau);
     }
     
-    Float getD2(Float tau) {
+    Float getD2(Float tau) const {
         int idx;
         Float taul;
         std::tie(idx, taul) = getTimeBin(tau);
@@ -174,7 +174,7 @@ public:
         return Spline::y(D2[idx], D2d[idx], D2[idx+1], D2d[idx+1], taul, dtau, tau);
     }
 
-    Float getD1d(Float tau) {
+    Float getD1d(Float tau) const {
         int idx;
         Float taul;
         std::tie(idx, taul) = getTimeBin(tau);
@@ -187,7 +187,7 @@ public:
         return Spline::y(D1d[idx], m*a[idx]*D1[idx], D1d[idx+1], m*a[idx+1]*D1[idx+1], taul, dtau, tau);
     }
 
-    Float getD2d(Float tau) {
+    Float getD2d(Float tau) const {
         int idx;
         Float taul;
         std::tie(idx, taul) = getTimeBin(tau);
@@ -200,7 +200,7 @@ public:
         return Spline::y(D2d[idx], m*a[idx]*D2[idx], D2d[idx+1], m*a[idx+1]*D2[idx+1], taul, dtau, tau);
     }
     
-    Float getPec(Float tau) {
+    Float getPec(Float tau) const {
         int idx;
         Float taul;
         std::tie(idx, taul) = getTimeBin(tau);
@@ -211,7 +211,7 @@ public:
         return Spline::y(Pec[idx], Pecd[idx], Pec[idx+1], Pecd[idx+1], taul, dtau, tau);
     }
 
-    Float getPecd(Float tau) {
+    Float getPecd(Float tau) const {
         int idx;
         Float taul;
         std::tie(idx, taul) = getTimeBin(tau);
@@ -223,7 +223,7 @@ public:
         return Spline::y(Pecd[idx], m*a[idx]*(Pec[idx]-1), Pecd[idx+1], m*a[idx+1]*(Pec[idx+1]-1), taul, dtau, tau);
     }
 
-    Float getGrowth(Float z) {
+    Float getGrowth(Float z) const {
 
         Float Delta0 = 1;
         /* we set it on the EdS growing mode at the start of the integration. need da/dtau = da/dt dt/dtau = a^3 H */  
