@@ -16,7 +16,7 @@ void Universe::sampleParticles() {
 
 
         /* random field expects 0..1 grid coords and does not include a length dimension*/
-        Float disp = L*initDisplacement.get_displacement(x/L);
+        Float disp = L*initDisplacement.get_displacement_at(x/L);
         x -= L/2;
 
 
@@ -62,7 +62,7 @@ void Universe::sampleParticles() {
         particles[i].t = 0;
     }
 
-    // set total momentum to zero
+     //set total momentum to zero
     totalVel /= nParticles;
     for (Long i = 0; i < nParticles; ++i) 
         particles[i].v -= totalVel;
@@ -214,13 +214,48 @@ Float Universe::collision_time(Long idLeft) {
     /* add one to be in the future of the start time */
     int idxR = idxLeft + 1;
 
+    /* the zero will be contained in the interval formed with the previous index */ 
+    int idxL = idxR - 1;
+
     if (fac >= 0) {
         if (distance(idxLast) > 0)
             return bg.taufin + 2 + idLeft;
-        /* walk until sign changed; note it will happen at the latest at idxLast because of the previous if statement*/
-        for (; distance(idxR) > 0; ++idxR);
+        /* else, sign changed exactly once */
+        ///* walk until sign changed; note it will happen at the latest at idxLast because of the previous if statement*/
+        //for (; distance(idxR) > 0; ++idxR);
+        //idxL = idxR - 1;
+
+        /* binary search. zero bracketed between idxLand idxR*/ 
+
+     
+        if (distance(idxR) > 0)
+        {
+            int c = 0;
+            ++idxR; 
+            for (; c < 70; ++idxR) {
+                if (distance(idxR) < 0) { 
+                    idxL = idxR - 1;
+                    break; 
+                }
+                ++c;
+            }
+            
+            if (c == 70) { 
+                idxL = idxR - 1;
+                idxR = idxLast;
+                int idxM; 
+                while ((idxM = (idxR + idxL)/2) != idxL) {
+                    if (distance(idxM) < 0) 
+                        idxR = idxM;
+                    else 
+                        idxL = idxM;
+                }
+            }
+        }
     }
     else {
+
+        /* unlike before, we have no guarantee that there is only one sign change so we should really walk through and hope for the best */
         if (Deltad0 > 0)
             return bg.taufin + 2 + idLeft;
         else {
@@ -228,12 +263,10 @@ Float Universe::collision_time(Long idLeft) {
                 if (idxR == idxLast)
                     return bg.taufin + 2 + idLeft;
             }
+            idxL = idxR - 1;
         }
     }
     
-    /* the zero is contained in the interval formed with the previous index */ 
-    int idxL = idxR - 1;
-
     Float yL = distance(idxL);
     Float yR = distance(idxR);
     Float DyL = distanced(idxL);

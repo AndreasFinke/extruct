@@ -60,8 +60,9 @@ include_directories(
 #add_compile_options("-march=native")
 #add_compile_options("-fno-stack-protector")
 #add_compile_options("-fomit-frame-pointer")
-enoki_set_compile_flags()
-enoki_set_native_flags()
+#add_compile_options("-O1" "-DDOUBLE")
+#enoki_set_compile_flags()
+#enoki_set_native_flags()
 
 
 
@@ -70,12 +71,13 @@ target_sources(extruct
   PRIVATE 
     main.cpp
     universe.cpp
+    xsum.cpp
 ) 
 set_target_properties(extruct PROPERTIES COMPILE_DEFINITIONS "PY=0")
 target_link_libraries(extruct PRIVATE tbb fftw3)
 
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/pybind11)
-pybind11_add_module(extructpy main.cpp universe.cpp)
+pybind11_add_module(extructpy main.cpp universe.cpp xsum.cpp)
 set_target_properties(extructpy PROPERTIES COMPILE_DEFINITIONS "PY=1")
 
 target_link_libraries(extructpy PRIVATE tbb fftw3)

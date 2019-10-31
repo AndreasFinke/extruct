@@ -104,7 +104,7 @@ public:
 
             if (forceEqualCorrelation) {
                 Float dkphys = 2*pi/(L*hor); 
-                in[i] *= kphys / (8*pi) *dkphys;
+                in[i] *= kphys / (4*pi) *dkphys;
             }
             else
                 in[i] *= kphys*kphys/pi;
@@ -152,21 +152,44 @@ public:
  *
  *     P(k) = Im h(k) where
  *
- *       h(k) = 8 pi/k int dr r exp(ikr) C(r)
+ *       h(k) = 8 pi/k int dr_0^infty r exp(ikr) C(r)
  *
- *     since r C(r) is real-odd, h(k) is purely imaginary and we can also do a sine transform to get it 
+ *  the imaginart part, all we care about, selects the sin from the exp(ikr) only. If we extend the integrand r C(r) by antisymmetry to negative r, 
+ *  we just double that part and the real part will come out to be zero then. Let's adopt this and actually define h(k) (where still P(k) = Im h(k)) 
  *
- *  but also, 
+ *      h(k) = 4 pi/k int dr_-infty^infty r C(r) exp(ikr) 
  *
- *  h(k) = 8pi/k -i \partial_k int dr exp(ikr) C(r) = 8pi/k -i \partial_k P_1D (k)  
+ *   but then 
+ *      
+ *      h(k) = 4pi/k -i \partial_k int dr exp(ikr) C(r) = 4pi/k -i \partial_k P_1D (k)  
  *
- *  so 
+ *  so P(k) = Im h(k) implies 
  *
- *  P(k) k = - 8pi P_1D'(k)  !!! 
+ *  P(k) k = - 4pi P_1D'(k)  !!! 
  *
- *  P_1D(k) = const - 1/8pi int dk P(k) k 
+ *  or 
+ *
+ *      P_1D(k) = const - 1/4pi int dk P(k) k 
  *
  *  const such that for large k P_1D is zero? 
+ *
+ *********
+ *  
+ *  As an aside, how is C(r) obtained from P(k)?
+ *
+ *  Since h(k) is purely imaginary, it is fully determined by P(k) from P(k) = Im h(k) as h(k) = i P(k)
+ *
+ *  It is also clear from its formula that h(k) k is hermitian so P(-k) for positive k and negative arguments must be = P(k) in the following when we write P(k) 
+ *  where there was h(k)
+ *
+ *  From the expression for h(k), 
+ *      
+ *      i P(k) k / 4pi = int dr r C(r) exp(ikr) 
+ *
+ *  and this means that 
+ *
+ *      C(r) r =  1/8pi^2 int dk i P(k) k exp(-ikr)  where P(-k) = P(k), which is real and antisymmetric as it should be 
+ *
  */
       
         pk.push_back(0);
@@ -317,6 +340,7 @@ public:
     virtual Float eval_dimless(int k) const  {
 
         /* since pk array got filled in constructor when A=1, we need to multiply by A here, too */
+
         if (k >= 0 && k < nModes)
             return A*pk[k]/(L*hor);
         else {
@@ -353,7 +377,7 @@ public:
 
     bool EisensteinHu = false;
 
-    static constexpr int nModes = 1000000*2;
+    static constexpr int nModes = 1000000*8;
 
 private:
     std::vector<Float> pk; 

@@ -4,6 +4,7 @@
 #include "background.h"
 #include "main.h"
 #include "pcg32.h"
+#include "timer.h"
 
 #include <set>
 #include <vector>
@@ -52,14 +53,12 @@ public:
 
     /* the factor of 1/8: it so happens that 4 particles per fourier bin of the initial spectrum avoids seeing top-hat related artifacts. but we don't want such high-frequency IC components in the system
      * beyond the ones that can be resolved by the particles - it will be aliasing noise at much lower frequencies otherwise. Factor 1/2 may be enough. But if we want to restrict to 4 particles / fourier bin max fourier frequency for FFT analysis, we should have another 1/4... */
-    Universe(Background bg, PowerSpectrum* ps, Float L, const Long seed, Long nParticles, int boundaryCondition) : L(L), pcg(0, seed), nParticles(nParticles), initDisplacement(nParticles/2), bg(bg), Dx(L/(nParticles-1)), boundary(boundaryCondition) {
-        std::cout << "Bang! ";
+    Universe(Background bg, Float L, const Long seed, Long nParticles, int boundaryCondition) : L(L), pcg(0, seed), nParticles(nParticles), initDisplacement(nParticles/2), bg(bg), Dx(L/(nParticles-1)), boundary(boundaryCondition) {
+        //std::cout << "Bang! ";
         if (!bg.isIntegrated) {
             std::cout << "Integrating background (because it has not yet been done)." << std::endl; 
             this->bg.integrate(); 
         }
-        std::cout << "Generating initial conditions with seed " << seed << std::endl;
-        draw(ps);
     }
 
     // force move construction, not only for performance (e.g. because of particles std::vector):
@@ -102,11 +101,14 @@ public:
             update_particle(i, most_recent_particle_time());
     }
 
-    void evolve(Float z) {
+    void evolve(Float z, bool skipCollisions = false) {
 
         Float t = bg.getTauOfZ(z);
-        while (next_collision_time() < t)
-            update_collision();
+
+        if (!skipCollisions) { 
+            while (next_collision_time() < t)
+                update_collision();
+        }
 
         latestTime = t;
         synchronize();
@@ -131,9 +133,9 @@ public:
     }
 
     // returns time of last collision or current evolved time if newer 
-    Float most_recent_particle_time() { return latestTime; }
+    Float most_recent_particle_time() const { return latestTime; }
 
-    Float next_collision_time() {return (collisions.begin())->collTime; }
+    Float next_collision_time() const {return (collisions.begin())->collTime; }
 
 private:
 
@@ -154,9 +156,13 @@ private:
                 //std::cout << "particle will be at " << particles[9].x << std::endl;
             //}
         //}
+        //
+        //START_NAMED_TIMER("COLLTIME")
         Float collTime = collision_time(i);
-
+        //STOP_TIMER
         //std::cout << "Coll time just computed for " << i <<" is " << collTime << std::endl;
+        //
+        //START_NAMED_TIMER("INSERT")
         if (i >= 0) { 
             particles[i].task = collisions.insert(RightCollision(i-rotation, collTime));
         
@@ -168,6 +174,7 @@ private:
         }
         else 
             leftBoundaryTask = collisions.insert(RightCollision(i-rotation, collTime));
+        //STOP_TIMER
     }
 
     Float latestTime = 0;
@@ -177,13 +184,13 @@ private:
     // particle list must be sorted by position
     //
 
-    Background bg; 
 
     pcg32 pcg;
 
     void sampleParticles(); 
 
 public:
+    Background bg; 
     RandomField initDisplacement;
 private:
     Float find_max_timestep();

@@ -15,11 +15,31 @@ class Multiverse {
 
 public:
 
-    Multiverse(int seed = 0) : seed(seed) {}
+    Multiverse(int seed = 0, bool onlyZeldovich = false) : seed(seed), onlyZeldovich(onlyZeldovich) {}
 
     int bang(Long nParticles, const Background& bg, PowerSpectrum* pspec, Float L, int boundaryCondition) {
-        universes.push_back(Universe(bg, pspec, L, universes.size() + seed, nParticles, boundaryCondition));
+        std::cout << "Drawing universe " << universes.size() << " with seed " << universes.size()+seed << "\n";
+        universes.push_back(Universe(bg, L, universes.size() + seed, nParticles, boundaryCondition));
+        universes.back().draw(pspec);
         return universes.size()-1;
+
+    }
+
+    void bangAll(Long nParticles, const Background& bg, PowerSpectrum* pspec, Float L, int boundaryCondition, int N) {
+        for (int i = 0; i < N; ++i) {
+            universes.push_back(Universe(bg, L, universes.size() + seed, nParticles, boundaryCondition));
+        }
+        tbb::parallel_for(
+            tbb::blocked_range<size_t>(0, universes.size(), 1),
+                [&](tbb::blocked_range<size_t> range) {
+                    for (size_t i = range.begin(); i < range.end(); ++i) {
+                    //for (int i = 0; i < universes.size(); ++i) {
+                    
+                        universes[i].draw(pspec);
+                        std::cout << "Drawing universe " << i << " with seed " << i+seed << "\n";
+                    }
+                }
+        );
 
     }
 
@@ -29,7 +49,7 @@ public:
     void evolve(int universeID, Float z) {
 
         universes[universeID].diagnose();
-        universes[universeID].evolve(z);
+        universes[universeID].evolve(z, onlyZeldovich);
 
     }
 
@@ -58,8 +78,9 @@ public:
 
     void measureAll(Measurement* m) {
         
-        for (auto& u : universes) 
+        for (auto&& u : universes) 
             m->measure(u, universes.size());
+        m->postprocess();
     }
 
 private:
@@ -67,5 +88,7 @@ private:
     std::vector<Universe> universes;
     Long nCollisions = 0;
     Long seed = 0;
+
+    bool onlyZeldovich; 
 
 };

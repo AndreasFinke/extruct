@@ -223,7 +223,7 @@ public:
         return Spline::y(Pecd[idx], m*a[idx]*(Pec[idx]-1), Pecd[idx+1], m*a[idx+1]*(Pec[idx+1]-1), taul, dtau, tau);
     }
 
-    Float getGrowth(Float z) const {
+    Float getGrowth(Float tau) const {
 
         Float Delta0 = 1;
         /* we set it on the EdS growing mode at the start of the integration. need da/dtau = da/dt dt/dtau = a^3 H */  
@@ -233,11 +233,15 @@ public:
         Float c1 = - (Delta0)*D2d[0] + (Deltad0)*D2[0];
         Float c2 =   (Delta0)*D1d[0] - (Deltad0)*D1[0];
 
-        Float tau = getTauOfZ(z);
         Float D1 = getD1(tau);
         Float D2 = getD2(tau);
 
         return c1*D1 + c2*D2;
+    }
+
+    Float getGrowthOfZ(Float z) const {
+        Float tau = getTauOfZ(z);
+        return getGrowth(tau);
     }
 
 

@@ -34,6 +34,9 @@ public:
         }
     }
 
+    virtual void postprocess() { 
+    }
+
     auto getResult() {
 #if PY == 1 
         py::array_t<float> ret({rows,cols});
@@ -61,6 +64,10 @@ protected:
     int cols = 0;
 
 };
+
+template<class T> class CorrelationFunction;
+//class DensityObs2;
+
 
 class DensityObs : public Measurement {
 
@@ -133,8 +140,8 @@ public:
 
 
         for (int i = 0; i < res; ++i) {
-            datap[i] += A*universe.initDisplacement.get_field(Float(i)/res);
-            datap[res+i] += A*universe.initDisplacement.get_displacement(Float(i)/res);
+            datap[i] += A*universe.initDisplacement.get_field_at(Float(i)/res);
+            datap[res+i] += A*universe.initDisplacement.get_displacement_at(Float(i)/res);
         }
     }
 private:
@@ -189,6 +196,7 @@ private:
 class DensityObs2 : public Measurement {
 
     friend class PowerSpectrumObs;
+    friend class CorrelationFunction<DensityObs2>;
 
 public:
 
@@ -202,7 +210,7 @@ public:
    
     virtual void reset() { 
         for (int i = 0; i < res; ++i) {
-           datap[i] = 0 +  1*i/Float(res); 
+           datap[i] = i/Float(res); 
            datap[i+res] = 0;
         }
     }
@@ -313,6 +321,241 @@ private:
 
 
 };
+
+
+class DensityLin : public Measurement {
+
+    friend class CorrelationFunction<DensityLin>;
+
+public:
+
+    DensityLin(int res) : Measurement(4*2*res), res(res) {
+        dataTypeSize = 4;
+        rows = 2;
+        cols = res;
+        datap = (float *) data;
+        reset();
+    }
+   
+    virtual void reset() { 
+        for (int i = 0; i < res; ++i) {
+           datap[i] = i/Float(res); 
+           datap[i+res] = 0;
+        }
+    }
+
+    virtual ~DensityLin() {} 
+
+    virtual void measure(const Universe& universe, int N) {
+        Measurement::measure(universe, N);
+
+        float A = 1.f / N; 
+
+        /* the field actually gives the density contrast modes. density = meandensity*(delta+1)
+         * where meandensity is mostly arbitrary (to go back to delta / power etc) but we align it here with the convention for the other observables
+         * which is total mass of nParticles */
+        Float meandens = Float(universe.nParticles)/res;
+        std::vector<Float> delta = universe.initDisplacement.get_field(res);
+        Float g = universe.bg.getGrowth(universe.most_recent_particle_time());
+        for (int i = 0; i < res; ++i) {
+            datap[res+i] += A*(g*delta[i]+1)*meandens;
+        }
+
+    }
+
+private:
+
+    int res;
+    float* datap; 
+
+
+};
+
+template <int nLoops>
+class DensitySPT : public Measurement {
+
+    friend class CorrelationFunction<DensitySPT<nLoops>>;
+
+public:
+
+    DensitySPT(int res) : Measurement(4*2*res), res(res) {
+        dataTypeSize = 4;
+        rows = 2;
+        cols = res;
+        datap = (float *) data;
+        reset();
+    }
+   
+    virtual void reset() { 
+        for (int i = 0; i < res; ++i) {
+           datap[i] = i/Float(res); 
+           datap[i+res] = 0;
+        }
+    }
+
+    virtual ~DensitySPT() {} 
+
+    virtual void measure(const Universe& universe, int N) {
+        Measurement::measure(universe, N);
+
+        float A = 1.f / N; 
+
+        /* work on grids of double resolution, do multiplications one at a time */
+        /* can change to res ... more than 2*res should not change things */
+        //int calcres = 2*res;
+        int calcres = 4*res;
+
+        /* this is fixed */
+        int fourierres = calcres/2+1;
+        int deltakres = res/2+1;
+
+        std::vector<Float> psi = universe.initDisplacement.get_displacement(calcres, res);
+
+        fftw_complex *out, *deltak;
+        //char *convergedk;
+        double *in, *delta;
+        fftw_plan p1, p2, pdelta;
+
+        in = (double*) fftw_malloc(sizeof(double) * calcres);
+        out = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * fourierres);
+        delta = (double*) fftw_malloc(sizeof(double) * res);
+        deltak = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * deltakres);
+        //convergedk = (char*) fftw_malloc(sizeof(char) * deltakres);
+
+        for (int i = 0; i < deltakres; ++i) {
+            deltak[i][0] = 0;
+            deltak[i][1] = 0;
+        }
+        for (int i = 0; i < calcres; ++i) {
+            in[i] = 1;
+        }
+
+             //FFT normalization 
+            //for (int i = 0; i < calcres; ++i) {
+                //in[i] /= calcres;
+            //}
+
+        p1 = fftw_plan_dft_r2c_1d(calcres, in, out, FFTW_ESTIMATE);
+        p2 = fftw_plan_dft_c2r_1d(calcres, out, in, FFTW_ESTIMATE);
+        pdelta = fftw_plan_dft_c2r_1d(res, deltak, delta, FFTW_ESTIMATE);
+
+        Float g = universe.bg.getGrowth(universe.most_recent_particle_time());
+
+        /* determine order of magnitude of psi factor */
+        double avg = 0;
+        for (int i = 0; i < calcres; ++i) {
+            avg += std::fabs(psi[i]);
+        }
+        double typicalValue = avg*g/calcres/10; 
+        int order = std::log(typicalValue)/std::log(10);
+        double orderVal = std::pow(10, order);
+
+        for (int loop = 1; loop <= nLoops; ++loop) {
+
+            /* initialized "in" with 1. 
+             * In a loop:
+             * multiply "in" by psi 
+             * do FFT, project (remove higher part of the modes; initially redundant since there are already only ~deltakres modes populated )
+             * add result to deltak (with k factors)
+             * transform back
+             * repeat  ... 
+             * one final fft is needed to get delta to real space
+             */
+
+
+            for (int i = 0; i < calcres; ++i) {
+                in[i] *= g*psi[i]/loop/calcres / orderVal;
+            }
+
+
+            fftw_execute(p1);
+
+            //std::cout << avg << " or with growth " << g*avg << " out is " << std::sqrt(out[1][0]*out[1][0] + out[1][1]*out[1][1]) << " " << std::sqrt
+                //(out[deltakres/2][1]*out[deltakres/2][1]+out[deltakres/2][0]*out[deltakres/2][0]) << " orderval " << orderVal<<  "\n";
+            /* project */
+            double p = 0;
+            for (int i = deltakres; i < fourierres; ++i) {
+                p += out[i][0]*out[i][0] + out[i][1]*out[i][1];
+                out[i][0] = 0;
+                out[i][1] = 0;
+            }
+            std::cout << "killed aliasing power of " << p << " at loop " << loop << "\n";
+
+            int nNotConverged = 0; 
+
+            for (int i = 0; i < deltakres; ++i) {
+                double k = 2*pi*i; 
+                double kn = k*orderVal;
+
+                // kn = k^loop 
+                for (int j = 1; j < loop; ++j) 
+                    kn*=k*orderVal;
+
+                if ( (loop % 2) == 0) { 
+                    int sign = 1;
+                    if ( (loop % 4) != 0) sign = -1;
+                    deltak[i][0] += sign*kn*out[i][0];
+                    deltak[i][1] += sign*kn*out[i][1];
+                }
+                else { 
+                    /* multiply by i (loop = 3,7,...) , or -i (loop = 1,5,... ) */
+                    int sign = 1;
+                    if ( ((loop+1) % 4) != 0) sign = -1;
+                    deltak[i][0] -= sign*kn*out[i][1];
+                    deltak[i][1] += sign*kn*out[i][0];
+                }
+
+                /* estimate convergence by size of last term wrt to sum */
+                if (loop == nLoops && nLoops > 3) {
+                    if (std::fabs(kn*out[i][1]) + std::fabs(kn*out[i][0]) > 1e-1*(std::fabs(deltak[i][0]) + std::fabs(deltak[i][1])) ) {
+                        deltak[i][0] = 0;
+                        deltak[i][1] = 0;
+                        nNotConverged++;
+                    }
+                }
+            }
+
+            if (nNotConverged > 0) 
+                std::cout << "SPT not converged to 10 percent for " << nNotConverged << " requested Fourier modes at loop " << nLoops << ", which were zeroed. (This check is only applied at orders higher than 3.)\n";
+
+            /* note: c2r destroys input, i.e. out */
+            fftw_execute(p2);
+
+
+
+        }
+
+        /* fourier to real space (normalize below) */
+        fftw_execute(pdelta);
+
+        /* from delta to density; note FFT normalization */
+        for (int i = 0; i < res; ++i) {
+            Float meandens = Float(universe.nParticles)/res;
+            datap[res+i] += A*(delta[i]+1)*meandens;
+        }
+
+
+        fftw_free(in);
+        fftw_free(out);
+        fftw_free(deltak);
+        fftw_free(delta);
+        fftw_destroy_plan(p1);
+        fftw_destroy_plan(p2);
+        fftw_destroy_plan(pdelta);
+
+    }
+
+private:
+
+    int res;
+    float* datap; 
+
+
+};
+using CorrelationFunctionObs = CorrelationFunction<DensityObs2>;
+using SPTCorrelationFunctionObs = CorrelationFunction<DensitySPT<100>>;
+using LinCorrelationFunctionObs = CorrelationFunction<DensityLin>;
+
 class PhaseSpaceDensityObs : public Measurement {
 
 
@@ -392,9 +635,31 @@ public:
         datap = (float *) data;
         reset();
 
+        if (method == 2) { 
+            Float exponent = 1 + int(std::log(datap[res-1]*L*hor/(2*pi))/std::log(2.0));
+            /* FFTW r2c algorithm is fastest for small factors in the size of the real input array - use power of 2 here */
+            res_fourier = std::round(std::pow(2, exponent));
+            //std::cout << 2*res_fourier  << std::endl;
+
+            /* dividing two int powers of 2 gives int power of two */
+            skip = std::max(1, res_fourier/res_max);
+            /* so this is int power of two */
+            res_fourier /= skip;
+
+            densobs = new DensityObs2(2*res_fourier);
+            //densobs = new DensityObs2(res_fourier);
+            densobs->set_zoom(skip);
+
+            std::cout << "res fourier : " << res_fourier << "\n";
+            if (skip > 1)
+                std::cout << "Warning: requested maximal Fourier mode is so large that modes are skipped after zooming " << skip << " times into density." << std::endl;
+        }
     }
     
     const Float AVG_BIN_WIDTH = 0.01;
+    const int res_max = 4096*128*16*4;
+
+    int res_fourier; 
 
     Float L; 
 
@@ -412,7 +677,7 @@ public:
             growth *= base;
             Float  prop = 2*pi*int(growth);
 
-            if (std::fabs(prop-datap[last]) > 1) {
+            if (std::fabs(prop-datap[last]*L*hor) > 1) {
                 ++last;
                 datap[last] = prop/(L*hor);
             }
@@ -423,7 +688,8 @@ public:
 
 
     virtual ~PowerSpectrumObs() {
-        //delete densobs;
+        if (method == 2)
+            delete densobs;
     } 
 
 
@@ -539,59 +805,45 @@ public:
 
         if (method == 2) {
 
-            //for (int i = 0; i < res; ++i ) 
-                //std::cout<< datap[i]<<" ";
-            //std::cout << std::endl;
-            //std::cout << "large int is " << datap[res-1]*L*hor/(2*pi) << std::endl;
-            Float exponent = 1 + int(std::log(datap[res-1]*L*hor/(2*pi))/std::log(2.0));
-            //std::cout << "exponent is " << exponent << std::endl;
-            int res_fourier = std::round(std::pow(2, exponent));
-            const int res_max = 4096*128*4;
-            //std::cout << 2*res_fourier  << std::endl;
-            skip = std::max(1, res_fourier/res_max);
-            //std::cout << skip  << std::endl;
-            res_fourier /= skip;
-
-            //std::cout << 2*res_fourier  << std::endl;
-            densobs = new DensityObs2(2*res_fourier);
-            densobs->set_zoom(skip);
             /* don't pass N: reset measurment after each and average later */
             densobs->measure(universe, 1); 
             fftw_complex *out;
+            //double *out;
             double *in;
             fftw_plan p;
             in = (double*) fftw_malloc(sizeof(double) * 2 * res_fourier);
+            //in = (double*) fftw_malloc(sizeof(double) * res_fourier);
 
-            //std::cout << "alive " << std::endl;
             Float avg = 0;
-            Float l = densobs->datap[2*res_fourier];
-            Float r = densobs->datap[2*res_fourier+2*res_fourier-1];
+            ////Float l = densobs->datap[2*res_fourier];
+            ////Float r = densobs->datap[2*res_fourier+2*res_fourier-1];
             for (int i = 0; i < 2*res_fourier; ++i) {
-                //Float e = 1 - Float(i)/(2*res_fourier-1);
-                //densobs->datap[2*res_fourier+i] -= e*l+ (1-e)*r;
+            //for (int i = 0; i < res_fourier; ++i) {
+                ////Float e = 1 - Float(i)/(2*res_fourier-1);
+                ////densobs->datap[2*res_fourier+i] -= e*l+ (1-e)*r;
                 avg += densobs->datap[2*res_fourier+i];
+                //avg += densobs->datap[res_fourier+i]/universe.nParticles;
             }
-            //std::cout << "alive 2" << std::endl;
             avg /= 2*res_fourier;
+            //avg /= res_fourier;
             for (int i = 0; i < 2*res_fourier; ++i) {
-                //in[i] = (densobs->getData())[i];
+            //for (int i = 0; i < res_fourier; ++i) {
                 Float w = std::fabs(Float(i-(res_fourier-1/2))/Float(res_fourier-1/2));
                 w = w*w;
                 w = 1 - w;
                 w = 1;
-                in[i] = w*(densobs->datap[2*res_fourier+i]-avg)/universe.nParticles;
+                /* let's already normalize the FFT by 1/N = 1/(2*res_fourier) before*/
+                in[i] = w*(densobs->datap[2*res_fourier+i]/avg - 1)/(2*res_fourier);
+                //in[i] = w*(densobs->datap[res_fourier+i]/universe.nParticles - avg);
             }
 
-            //std::cout << "alive 3" << std::endl;
-            delete densobs;
-
             out = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * 2*res_fourier);
+            //out = (double*) fftw_malloc(sizeof(double) *res_fourier);
 
-        //p = fftw_plan_dft_1d(nGrid, reinterpret_cast<fftw_complex*>(&modes[0]), reinterpret_cast<fftw_complex*>(&field[0]), FFTW_BACKWARD, FFTW_ESTIMATE);
             p = fftw_plan_dft_r2c_1d(2 * res_fourier, in, out, FFTW_ESTIMATE);
+            //p = fftw_plan_r2r_1d(res_fourier, in, out, FFTW_REDFT10, FFTW_ESTIMATE); //can try 01 too (odd at right boundary... what does it mean? 
             fftw_execute(p); 
 
-            //std::cout << "res_fourier " << res_fourier << std::endl;
 
             for (int i = 1; i < res; ++i) {
                 Float centralk = datap[i]*L*hor;
@@ -608,6 +860,7 @@ public:
                     idx = std::min(idx, res_fourier-1);
                     idx = std::max(idx, 0);
                     datap[i+res] += A*L*hor*(out[idx][0]*out[idx][0] + out[idx][1]*out[idx][1])/nPoints;
+                    //datap[i+res] += A*L*hor*(out[idx]*out[idx])/nPoints;
 
                 }
             }
@@ -632,80 +885,174 @@ private:
 
 };
 
-//class CorrelationFunctionObs : public Measurement {
+template<class Dens>
+class CorrelationFunction : public Measurement {
 
-    //friend class PowerSpectrum3DObs;
+public:
 
-//public:
+    CorrelationFunction(int res,/* int zoom, */Float L, bool pseudo3d) : Measurement(4*res*2), res(res), pseudo3d(pseudo3d) {
+        dataTypeSize = 4;
+        rows = 2;
+        cols = res;
+        datap = (float *) data;
+        maxSize = L*hor/*/zoom*/;
 
-    //CorrelationFunctionObs(int method, int res) : Measurement(4*res*2), res(res) {
-        //psobs = new PowerSpectrumObs(method, res+1, 1); 
-        //dataTypeSize = 4;
-        //rows = 2;
-        //cols = res;
-        //datap = (float *) data;
-        //reset();
-    //}
-    
-    //virtual void reset() { 
-        //for (int i = 0; i < res; ++i) {
-           //datap[i] = 2*pi*i; 
-           //datap[i+res] = 0;
-        //}
-    //}
+        reset();
+        densobs = new Dens(2*res);
+        //densobs->set_zoom(zoom);
+    }
+   
+    bool pseudo3d; 
 
-    //virtual ~CorrelationFunctionObs() {
-        //delete psobs; 
-    //} 
+    virtual void reset() { 
+        for (int i = 0; i < res; ++i) {
+            /* the factor 1/2 deserves an explantion: 
+             * in the final FT from power spectrum to correlation we use variants of the FFTW r2r trafos. Since their modes are living on a mirrored space, they are "double as long".
+             * this means that transforming from modes for k= i * 2 pi / L to the signal, the osciallations are actually half a sin/cos, one, 1.5, 2, ... 
+             * such that the *last* mode corresponds to Nyquist (which is why with these trafos there is never the need to throw away some symmetric part 
+             * Since our modes were obtained by DFT on an interval of length L, the reconstruction will correspond to only half that and have length L/2 
+             * (even if the modes are double as long as usual, this is the way it goes - L was fixed and we only see half of the reconstruction) 
+             */
+            datap[i] = 0.5*(maxSize*i)/(res-1);
+            datap[i+res] = 0;
+        }
+    }
 
-    //virtual void measure(const Universe& universe, int N) {
-        //Measurement::measure(universe, N);
+    virtual ~CorrelationFunction() {
+        delete densobs;
+    } 
 
-        //float A = 1.f / N; 
+    virtual void measure(const Universe& universe, int N) {
 
-        //psobs->measure(universe, 1);
+        Measurement::measure(universe, N);
 
-        //double *out;
-        //double *in;
-        //fftw_plan p;
-        //in = (double*) fftw_malloc(sizeof(double) * 1 * (res+1));
+        float A = 1.f / N; 
+
+        /* don't pass N: reset measurment after each and average later */
+        densobs->measure(universe, 1); 
+        fftw_complex *out;
+        double *in;
+        fftw_plan p;
+        in = (double*) fftw_malloc(sizeof(double) * 2 * res);
+
+
+        Float avg = 0;
+        for (int i = 0; i < 2*res; ++i)
+            avg += densobs->datap[2*res+i];
+        avg /= (2*res);
+
+        /* assume that average is nonzero, that is, density is not a density contrast! overall normalization of density drops when converting to the contrast. 
+         * It's normalization in turn is not arbitrary. The conversion can clearly only be carried out once. 
+           Again, the last factor 1/(2*res) is just to pre-deal with the missing FFTW normalization */
+
+        for (int i = 0; i < 2*res; ++i) {
+            in[i] = (densobs->datap[2*res+i]/avg-1)/(2*res);
+        }
+
+        /* remove linear trend. it is okay to introduce shift to nonzero mean here */ 
+
+        //Float l = in[0];
+        //Float r = in[2*res-1];
+
+        //for (int i = 0; i < 2*res; ++i) 
+            //in[i] -= Float(2*res-1-i)/Float(2*res-1)*l + Float(i)/Float(2*res-1)*r;
+
+        out = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * 2*res);
+
+        p = fftw_plan_dft_r2c_1d(2 * res, in, out, FFTW_ESTIMATE);
+        fftw_execute(p); 
+
+
+        datap[res] = 0;
+
+        /* no factors of V = L*hor needed, after postprocess they will always drop out */
+        /* in this case, the result is P_1D(k) / (L*hor) */
+        for (int i = 1; i < res; ++i) {
+            Float fac = 1;
+            if (pseudo3d) {
+                /* divide by k^2/pi to get 3d power spectrum */
+                /* in this case, it is P_3d / (L*hor)^3 */ 
+                Float k = i*2*pi;
+                fac = 1/(k*k/pi); 
+            }
+            datap[i+res] += A*fac*(out[i][0]*out[i][0] + out[i][1]*out[i][1]);
+            //datap[i+res] += in[2*i]; //A*fac*(out[i][0]*out[i][0] + out[i][1]*out[i][1]);
+        }
         
-        //for (int i = 0; i < 1*res + 1; ++i) {
-            //in[i] = psobs->datap[1*res+1+i];
-        //}
+        fftw_destroy_plan(p);
+        fftw_free(in); 
+        fftw_free(out);
 
-        //[> remove delta at k=0, that is, constant offset of correlation fctn <]
-        //in[0] = 0;
+    }
 
-        //out = (double*) fftw_malloc(sizeof(double) * 1 * (res+1));
+    void postprocess() { 
 
-    ////p = fftw_plan_dft_1d(nGrid, reinterpret_cast<fftw_complex*>(&modes[0]), reinterpret_cast<fftw_complex*>(&field[0]), FFTW_BACKWARD, FFTW_ESTIMATE);
-    ////
-        //[> fast if N = 2(n-1) where n is the first argument has small factors! that is, res should be a power of 2!<]
-        //p = fftw_plan_r2r_1d(1*res + 1, in, out, FFTW_REDFT00, FFTW_ESTIMATE); //can try 01 too (odd at right boundary... what does it mean? 
-        ////p = fftw_plan_r2r_1d(1*res, in, out, FFTW_REDFT00);
-        //fftw_execute(p); 
+        double *out;
+        double *in;
+        fftw_plan p;
+        in = (double*) fftw_malloc(sizeof(double) * res);
+        out = (double*) fftw_malloc(sizeof(double) * res);
+       
+        if (!pseudo3d) { 
 
-        //[> drop last <]
+            /* copy k=0 mode in the zero index */
+            for (int i = 0; i < res; ++i) {
+                in[i] = datap[res+i];//  - ((res-1.-i)/(res-1)*datap[res+1] + Float(i)/(res-1)*datap[2*res-1]);
+            }
 
-        //for (int i = 0; i < res; ++i) {
-            //datap[i+res] += A*out[i];
-        //}
+            /* remove delta at k=0, that is, constant offset of correlation fctn if there is any*/
+            in[0] = in[1];
 
-        //fftw_destroy_plan(p);
-        //fftw_free(in); 
-        //fftw_free(out);
-    //}
-//private:
+            /* cos trafo: even on first index (k=0) and odd on last (should work well if there function has fallen off and small derivative too) 
+             * note that it does not fall of to k->0 for the equalCorrelation P_1d(k) which goes to const!) */
+            p = fftw_plan_r2r_1d(res, in, out, FFTW_REDFT00, FFTW_ESTIMATE); //can try 01 too (odd at right boundary... what does it mean? 
+            fftw_execute(p); 
 
-    //int res;
+            /* FFTW includes factor of 2 from the mirrored part */ 
+            for (int i = 0; i < res; ++i) {
+                datap[i+res] = out[i];
+            }
+        }
+        else { 
+
+            /* skip k=0 mode in the zero index */
+            for (int i = 0; i < res-1; ++i) {
+                in[i] = datap[res+i+1]*2*pi*i/8/pi/pi;
+                //in[i] = datap[res+i]  - ((res-1.-i)/(res-1)*datap[res+1] + Float(i)/(res-1)*datap[2*res-1]);
+            }
+            /* 0 padding */
+            in[res-1] = 0;
+
+            /* sin trafo: odd around -1 (k=0) and even on last (again we hope it has fallen off) */
+            p = fftw_plan_r2r_1d(res, in, out, FFTW_RODFT01, FFTW_ESTIMATE); //can try 01 too (odd at right boundary... what does it mean? 
+            fftw_execute(p); 
+
+            /* drop last */
+            for (int i = 1; i < res; ++i) {
+                datap[i+res] = out[i] / (Float(i)/(res-1));
+            }
+        }
+
+        fftw_destroy_plan(p);
+        fftw_free(in); 
+        fftw_free(out);
+    }
+
+private:
+
+    int res;
 
     //PowerSpectrumObs * psobs; 
+    Dens * densobs;
+    Float maxSize;
 
-    //float* datap; 
+    float* datap; 
 
 
-//};
+};
+
+//using CorrelationFunctionObs = CorrelationFunction<DensityObs2>;
+
 
 //class PowerSpectrum3DObs : public Measurement {
 

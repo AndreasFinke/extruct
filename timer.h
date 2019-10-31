@@ -71,7 +71,7 @@ private:
 
 #ifdef TIMING 
 
-TinyTimer timer;
+static TinyTimer timer;
 
 #define START_TIMER timer.start(__PRETTY_FUNCTION__);
 #define START_NAMED_TIMER(name) timer.start(name);
